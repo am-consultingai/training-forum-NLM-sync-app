@@ -1,0 +1,13 @@
+Build binaries land here (fetched by build.ps1; not committed to git):
+
+  ffmpeg.exe          — static Windows ffmpeg, bundled next to the app for audio
+                        extraction from video.
+                        (https://github.com/BtbN/FFmpeg-Builds/releases or
+                         https://www.gyan.dev/ffmpeg/builds/)
+
+  vc_redist.x64.exe   — Microsoft Visual C++ 2015-2022 x64 redistributable, run
+                        silently by the installer when the machine lacks it
+                        (required by ctranslate2 / onnxruntime).
+                        (https://aka.ms/vs/17/release/vc_redist.x64.exe)
+
+You can drop either file here manually instead of letting build.ps1 fetch it.

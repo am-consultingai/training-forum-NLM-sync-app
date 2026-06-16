@@ -1,0 +1,53 @@
+# Builds the Windows installer (DriveSyncManager-Setup-<ver>.exe) on a Windows
+# runner and uploads it as a downloadable artifact. Push a tag like v1.0.0 to also
+# attach it to a GitHub Release.
+#
+# NOTE: GitHub Actions requires workflows to live in .github/workflows/, so this is
+# the one packaging artifact that cannot live under win_app/.
+#
+# One-time setup: push this repo to GitHub. No secrets needed — the OAuth client is
+# NOT baked into the installer; each user loads it at runtime via Settings.
+
+name: Build Windows installer
+
+on:
+  workflow_dispatch:        # run manually from the Actions tab
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # needed for the tagged-release step to upload the installer
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        run: powershell -ExecutionPolicy Bypass -File win_app\build.ps1
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DriveSyncManager-Setup
+          path: dist/installer/*.exe
+          if-no-files-found: error
+
+      - name: Attach to release (tagged builds)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/installer/*.exe

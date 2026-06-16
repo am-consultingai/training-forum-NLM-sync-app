@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+APScheduler
+python-multipart
+pypdf
+python-pptx
+python-docx
+pandas
+openpyxl
+faster-whisper
+huggingface_hub
+pystray
+pillow

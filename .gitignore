@@ -1,0 +1,30 @@
+# ── Secrets & local config (NEVER commit) ───────────────────────────────────
+.env
+creds/
+credentials/
+app_config.json
+win_app/vendor/*.exe
+.claude/settings.local.json
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+.venv-build/
+
+# ── Frontend ─────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+
+# ── Build outputs (PyInstaller / Inno Setup), at repo root ───────────────────
+/build/
+/dist/
+
+# ── App data & large reference material ──────────────────────────────────────
+data/
+old_script/
+
+# ── OS / editor / logs ───────────────────────────────────────────────────────
+.DS_Store
+*.log
+*:Zone.Identifier
