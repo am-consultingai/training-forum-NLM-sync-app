@@ -18,6 +18,7 @@
 #>
 param(
     [switch]$IncludeData,   # also delete the data folder without prompting
+    [switch]$KeepData,      # never touch the data folder, never prompt (non-interactive)
     [switch]$DryRun         # show what would be removed, but remove nothing
 )
 
@@ -81,7 +82,9 @@ Write-Host "Downloaded data:" -ForegroundColor Cyan
 if (Test-Path $dataDir) {
     $bytes = (Get-ChildItem $dataDir -Recurse -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
     $size  = "{0:N2} GB" -f (($bytes) / 1GB)
-    if ($DryRun) {
+    if ($KeepData) {
+        Write-Host "  [kept] data folder ($size): $dataDir" -ForegroundColor DarkGray
+    } elseif ($DryRun) {
         Write-Host "  [would remove if confirmed] data folder ($size): $dataDir" -ForegroundColor Yellow
     } else {
         $remove = $IncludeData

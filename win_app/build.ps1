@@ -64,6 +64,15 @@ $env:TEMP = $Tmp
 $portableInno = $null   # set if we install a throwaway Inno Setup into .build
 
 try {
+    # 0. Remove any existing installation first, so a fresh install of the new
+    #    build has no leftovers. Keeps the downloaded model/data (no re-download).
+    #    On a clean build machine (e.g. CI) this simply finds nothing to remove.
+    $cleanup = Join-Path $WinApp "cleanup-windows.ps1"
+    if (Test-Path $cleanup) {
+        Write-Host "==> Removing any existing installation first (keeping downloaded data)" -ForegroundColor Cyan
+        try { & $cleanup -KeepData } catch { Write-Host "  (cleanup skipped: $($_.Exception.Message))" -ForegroundColor DarkGray }
+    }
+
     # 1. Isolated Python venv ------------------------------------------------
     Write-Host "==> Creating isolated Python venv (.build\venv)" -ForegroundColor Cyan
     # Resolve a REAL Python. The bare 'python' command is often the Microsoft Store
