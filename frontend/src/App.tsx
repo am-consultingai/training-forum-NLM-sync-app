@@ -267,8 +267,8 @@ export default function App() {
 
       <footer style={{
         flexShrink: 0, borderTop: '1px solid #1e293b', background: '#0b0f19',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        padding: '8px 16px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+        padding: '12px 16px',
       }}>
         <a
           href="https://www.amconsultingai.com"
@@ -276,12 +276,19 @@ export default function App() {
           rel="noopener noreferrer"
           title="AM Consulting — amconsultingai.com"
           style={{
-            display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none',
-            color: '#94a3b8', fontSize: '0.72rem',
+            display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none',
+            color: '#cbd5e1', fontSize: '0.95rem', fontWeight: 500,
           }}
         >
           <span>Powered by</span>
-          <img src={amLogo} alt="AM Consulting" style={{ height: 16, display: 'block' }} />
+          <span style={{
+            display: 'inline-flex', alignItems: 'center',
+            background: '#ffffff', borderRadius: 8,
+            padding: '6px 12px',
+            boxShadow: '0 1px 6px rgba(0, 0, 0, 0.4)',
+          }}>
+            <img src={amLogo} alt="AM Consulting" style={{ height: 30, display: 'block' }} />
+          </span>
         </a>
       </footer>
     </div>

@@ -27,7 +27,9 @@ OutputBaseFilename=DriveSyncManager-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-; AM Consulting branding: app/setup icon + wizard banner bitmaps.
+; Branding: cloud-sync app/setup icon + wizard banner bitmaps. The AM Consulting
+; wordmark is placed at the bottom (footer) of every wizard page in [Code]
+; (see InitializeWizard) rather than in the icon.
 SetupIconFile=app.ico
 WizardImageFile=branding\wizard-large.bmp
 WizardSmallImageFile=branding\wizard-small.bmp
@@ -48,6 +50,9 @@ Source: "..\dist\DriveSyncManager\*"; DestDir: "{app}"; Flags: recursesubdirs cr
 ; Microsoft Visual C++ runtime - required by the native ML libraries (ctranslate2,
 ; onnxruntime). Only extracted/run when it isn't already installed (see [Code]).
 Source: "vendor\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: VCRedistNeeded
+; AM Consulting wordmark, shown at the bottom of every wizard page (see [Code]).
+; Not installed - extracted to {tmp} at runtime via ExtractTemporaryFile.
+Source: "branding\footer-logo.bmp"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
@@ -65,6 +70,26 @@ Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; \
 Filename: "{app}\{#AppExe}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+// Place the AM Consulting wordmark at the bottom-left of every wizard page,
+// vertically aligned with the navigation buttons. The bitmap is pre-composited
+// onto the standard button-face colour (make_assets.py) so it blends in and
+// reads as a transparent footer logo.
+procedure InitializeWizard();
+var
+  FooterLogo: TBitmapImage;
+begin
+  ExtractTemporaryFile('footer-logo.bmp');
+  FooterLogo := TBitmapImage.Create(WizardForm);
+  FooterLogo.Parent := WizardForm;
+  FooterLogo.Bitmap.LoadFromFile(ExpandConstant('{tmp}\footer-logo.bmp'));
+  FooterLogo.Stretch := True;
+  FooterLogo.Width := ScaleX(116);
+  FooterLogo.Height := ScaleY(29);
+  FooterLogo.Left := ScaleX(18);
+  FooterLogo.Top := WizardForm.CancelButton.Top +
+    (WizardForm.CancelButton.Height - FooterLogo.Height) div 2;
+end;
+
 function VCRedistInstalled(): Boolean;
 var
   installed: Cardinal;
