@@ -8,7 +8,10 @@
 ; asked whether to delete it too. The shared VC++ runtime is intentionally NOT
 ; removed on uninstall (other applications depend on it).
 
-#define AppName "Drive Sync Manager"
+; Display name shown to users (window/shortcut/uninstall entry). The internal
+; identifiers below (AppExe, install dir, data dir, output filename) deliberately
+; stay "DriveSyncManager" so an existing install's data folder isn't orphaned.
+#define AppName "sHaRe sync"
 #define AppVersion "1.0.0"
 #define AppExe "DriveSyncManager.exe"
 
@@ -118,7 +121,7 @@ begin
     dataDir := ExpandConstant('{localappdata}\DriveSyncManager');
     if DirExists(dataDir) and (not UninstallSilent) then
     begin
-      if MsgBox('Also delete downloaded data for Drive Sync Manager?' + #13#10#13#10 +
+      if MsgBox('Also delete downloaded data for {#AppName}?' + #13#10#13#10 +
                 'This includes the ~3 GB transcription model, GPU libraries, your ' +
                 'Google sign-in, and locally synced data at:' + #13#10 + dataDir + #13#10#13#10 +
                 'Choose No to keep it (e.g. if you plan to reinstall).',

@@ -12,6 +12,7 @@ import { useSSE } from './hooks/useSSE';
 import { api } from './api/client';
 import type { ProgressEvent } from './types';
 import amLogo from './assets/am-logo.png';
+import cloudLogo from './assets/cloud-logo.png';
 import './App.css';
 
 export default function App() {
@@ -158,8 +159,8 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
       <header style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <span style={{ fontSize: '1.2rem' }}>📚</span>
-        <h1 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>Drive → NotebookLM Sync</h1>
+        <img src={cloudLogo} alt="sHaRe sync" style={{ height: 28, width: 28, display: 'block' }} />
+        <h1 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>sHaRe sync</h1>
         {dataFolder && (
           <span
             style={{ fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300, cursor: 'pointer' }}

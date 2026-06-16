@@ -140,7 +140,7 @@ export function FileTree({ nodes, loading }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
 
       {/* Search + Filter + Collapse All */}
       <div style={{ padding: '8px 10px', borderBottom: '1px solid #2d3748', display: 'flex', gap: 6 }}>

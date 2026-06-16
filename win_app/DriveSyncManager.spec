@@ -52,6 +52,8 @@ datas = (
     + [
         (os.path.join(REPO, "frontend", "dist"), "frontend_dist"),
         (os.path.join(WIN_APP, "vendor", "ffmpeg.exe"), "."),
+        # The cloud-sync icon, loaded at runtime for the system-tray icon.
+        (os.path.join(WIN_APP, "app.ico"), "."),
         # NOTE: the OAuth client JSON is deliberately NOT bundled — the user loads it
         # at runtime via Settings (stored in %LOCALAPPDATA%\DriveSyncManager\creds).
     ]

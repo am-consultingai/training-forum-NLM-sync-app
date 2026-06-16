@@ -21,3 +21,10 @@ body {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(400%); }
 }
+
+/* Blinking highlight for the pipeline stage currently running. Color is supplied
+   per-stage via the --blink-color custom property set inline. */
+@keyframes stageBlink {
+  0%, 100% { box-shadow: 0 0 0 0 var(--blink-color); opacity: 1; }
+  50%      { box-shadow: 0 0 12px 2px var(--blink-color); opacity: 0.78; }
+}

@@ -315,14 +315,24 @@ interface Step {
   label: string; color: string; value: number | null; unit: string; desc: string; bad?: number;
 }
 
+// Map a backend stage_change `stage` to the index of the pipeline step it belongs
+// to, so the running stage's block can blink. (The hydrate/restore stage has no
+// dedicated block here — it reuses/fetches cached extracts, so it lights up the
+// Download step, whose count moves during restore.)
+const STAGE_TO_STEP: Record<string, number> = {
+  connecting: 0, discover: 1, hydrate: 2, download: 2,
+  process: 3, processing: 3, extract_sync: 4, chunk: 5, upload: 6,
+};
+
 function PipelineSummary() {
   const [run, setRun] = useState<any>(null);
   const [live, setLive] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Poll while the panel is open so the blinking active stage tracks the run live.
   useEffect(() => {
     let alive = true;
-    Promise.all([
+    const load = () => Promise.all([
       fetch('/api/sync/status').then(r => r.json()).catch(() => null),
       fetch('/api/sync/live-progress').then(r => r.json()).catch(() => null),
     ]).then(([s, l]) => {
@@ -331,7 +341,9 @@ function PipelineSummary() {
       setLive(l || null);
       setLoading(false);
     });
-    return () => { alive = false; };
+    load();
+    const id = window.setInterval(load, 2000);
+    return () => { alive = false; window.clearInterval(id); };
   }, []);
 
   if (loading) {
@@ -355,6 +367,11 @@ function PipelineSummary() {
     : run?.status === 'failed' ? '#f87171'
     : run?.status === 'running' ? '#3b82f6' : '#94a3b8';
 
+  // Which step is running right now (only while a sync is active) → blink it.
+  const running = run?.status === 'running';
+  const stageKey = (live?.stage as string) || '';
+  const activeIdx = running && stageKey in STAGE_TO_STEP ? STAGE_TO_STEP[stageKey] : -1;
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -369,12 +386,17 @@ function PipelineSummary() {
 
       {/* Sequential flow: numbered stages connected by arrows */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: 6 }}>
-        {steps.map((s, i) => (
+        {steps.map((s, i) => {
+          const active = i === activeIdx;
+          return (
           <Fragment key={s.label}>
             <div style={{
               flex: '1 1 120px', minWidth: 112, maxWidth: 210,
-              background: '#0f172a', border: `1px solid ${s.color}44`, borderTop: `3px solid ${s.color}`,
+              background: active ? s.color + '14' : '#0f172a',
+              border: `1px solid ${active ? s.color : s.color + '44'}`,
+              borderTop: `3px solid ${s.color}`,
               borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 2,
+              ...(active ? ({ ['--blink-color']: s.color, animation: 'stageBlink 1.1s ease-in-out infinite' } as React.CSSProperties) : null),
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{
@@ -396,7 +418,8 @@ function PipelineSummary() {
               <div style={{ display: 'flex', alignItems: 'center', color: '#94a3b8', fontSize: '1.2rem', flexShrink: 0 }}>→</div>
             )}
           </Fragment>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ marginTop: 10, fontSize: '0.72rem', color: '#94a3b8' }}>

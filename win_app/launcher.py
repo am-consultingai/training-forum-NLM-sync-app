@@ -59,7 +59,7 @@ def _error_box(message: str):
     if sys.platform == "win32":
         try:
             import ctypes
-            ctypes.windll.user32.MessageBoxW(0, message, "Drive Sync Manager", 0x10)
+            ctypes.windll.user32.MessageBoxW(0, message, "sHaRe sync", 0x10)
             return
         except Exception:
             pass
@@ -89,10 +89,21 @@ def _trigger_sync():
 def _make_icon_image():
     from PIL import Image, ImageDraw
 
+    # Prefer the bundled cloud-sync mark (app.ico). In a PyInstaller one-dir build
+    # data files live under sys._MEIPASS; in dev it sits next to this file.
+    base = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
+    for cand in (os.path.join(base, "app.ico"),
+                 os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")):
+        try:
+            return Image.open(cand).convert("RGBA")
+        except Exception:
+            pass
+
+    # Fallback: simple blue disc with a play glyph (rarely needed).
     img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.ellipse((6, 6, 58, 58), fill=(37, 99, 235, 255))   # blue disc
-    d.polygon([(26, 20), (26, 44), (46, 32)], fill=(255, 255, 255, 255))  # play glyph
+    d.ellipse((6, 6, 58, 58), fill=(37, 99, 235, 255))
+    d.polygon([(26, 20), (26, 44), (46, 32)], fill=(255, 255, 255, 255))
     return img
 
 
@@ -102,7 +113,7 @@ def main():
         webbrowser.open(URL)
         _error_box(
             f"Port {PORT} is already in use.\n\n"
-            "Drive Sync Manager may already be running — opening it in your browser. "
+            "sHaRe sync may already be running — opening it in your browser. "
             "If something else is using the port, close it and relaunch."
         )
         return
@@ -135,7 +146,7 @@ def main():
     icon = pystray.Icon(
         "drive_sync_manager",
         _make_icon_image(),
-        "Drive Sync Manager",
+        "sHaRe sync",
         menu=pystray.Menu(
             Item("Open", on_open, default=True),
             Item("Run sync now", on_sync),

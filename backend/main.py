@@ -17,7 +17,7 @@ from backend.api.status import router as status_router
 from backend.api.auth import router as auth_router
 from win_app.app_core.setup_api import router as setup_router
 
-app = FastAPI(title="Drive Sync Manager")
+app = FastAPI(title="sHaRe sync")
 
 app.add_middleware(
     CORSMiddleware,
