@@ -38,7 +38,7 @@ $WinApp = $PSScriptRoot
 $Repo   = Split-Path -Parent $WinApp
 Set-Location $Repo
 
-$NodeVersion = "v20.18.1"   # portable Node LTS pulled into .build
+$NodeVersion = "v22.12.0"   # portable Node LTS (Vite needs >= 20.19 / 22.12)
 
 # Everything transient lives here.
 $BuildRoot = Join-Path $Repo ".build"
@@ -115,7 +115,11 @@ try {
         Write-Host "==> Building frontend" -ForegroundColor Cyan
         Push-Location (Join-Path $Repo "frontend")
         try {
-            if (Test-Path "package-lock.json") { npm ci } else { npm install }
+            # Clean install on Windows: a lockfile generated on another OS can omit
+            # the platform-native rolldown binding (npm optional-dependency bug).
+            if (Test-Path "node_modules") { Remove-Item -Recurse -Force "node_modules" }
+            if (Test-Path "package-lock.json") { Remove-Item -Force "package-lock.json" }
+            npm install --no-fund --no-audit
             npm run build
         } finally { Pop-Location }
     }
