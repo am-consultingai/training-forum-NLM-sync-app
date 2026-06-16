@@ -4,19 +4,23 @@ from backend.app_config import get_db_path, get_data_root, ensure_data_dirs
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(get_db_path(), check_same_thread=False)
+    # `timeout` is the C-level busy timeout; pair it with the PRAGMA below so both
+    # the driver and the engine wait out transient locks instead of failing fast.
+    conn = sqlite3.connect(get_db_path(), check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
     # Wait out transient locks (DrvFS/Windows mounts can be slower than ext4).
     conn.execute("PRAGMA busy_timeout=30000")
-    # WAL works on the data folders we target (incl. /mnt/e DrvFS), but fall back
-    # to DELETE if a filesystem can't support WAL's shared-memory (-shm) file.
+    # WAL lets the UI's read-polling run concurrently with the sync's writer
+    # WITHOUT either blocking the other — essential here, since several connections
+    # touch this DB at once. PRAGMA journal_mode returns the resulting mode rather
+    # than raising, so check it: if WAL didn't engage (a filesystem that can't back
+    # the -shm/-wal files), fall back to DELETE explicitly.
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
-    except Exception:
-        try:
+        mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+        if str(mode).lower() != "wal":
             conn.execute("PRAGMA journal_mode=DELETE")
-        except Exception:
-            pass
+    except Exception:
+        pass
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 

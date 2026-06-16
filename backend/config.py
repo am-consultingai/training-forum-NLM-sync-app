@@ -6,9 +6,17 @@ from backend import paths
 
 
 class Settings(BaseSettings):
-    source_drive_folder_id: str = ""
-    output_drive_folder_id: str = ""
-    extracted_text_drive_folder_id: str = ""
+    # Shipped defaults — the Training Forum Drive folders. These travel with the
+    # build (this module is bundled into the exe), so a fresh install syncs with no
+    # folder setup required. A user can still override any of them via the Settings
+    # UI (persisted to app_config.json, which wins) or an env var, but they don't
+    # have to. Keep these in sync with the canonical folders:
+    #   source   = original content   https://drive.google.com/drive/folders/1jl82g-J8vJfF6kzIW7CWpRJg9WMYOm-6
+    #   output   = chunks             https://drive.google.com/drive/folders/1aDD62rFx8FYHsHIs_N3awduvolzu0YR1
+    #   mirror   = extracted text     https://drive.google.com/drive/folders/1qsgaST-n_XBN0aDwUtcF4c-uBfoefXql
+    source_drive_folder_id: str = "1jl82g-J8vJfF6kzIW7CWpRJg9WMYOm-6"
+    output_drive_folder_id: str = "1aDD62rFx8FYHsHIs_N3awduvolzu0YR1"
+    extracted_text_drive_folder_id: str = "1qsgaST-n_XBN0aDwUtcF4c-uBfoefXql"
     # Defaults resolve to per-user / bundled locations so the packaged app works
     # with no .env present. Env vars (GOOGLE_CREDENTIALS_PATH, etc.) still override
     # for development.
