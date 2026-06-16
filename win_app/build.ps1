@@ -1,8 +1,8 @@
 <#
-  build.ps1 — build the Windows installer in a fully SELF-CONTAINED way.
+  build.ps1 - build the Windows installer in a fully SELF-CONTAINED way.
 
   Everything transient is created under <repo>\.build:
-    * an isolated Python venv (your existing Python is used only to spawn it — it is
+    * an isolated Python venv (your existing Python is used only to spawn it - it is
       never modified, and no global site-packages or pip cache are touched),
     * pip + npm caches,
     * temp downloads (ffmpeg, VC++ redist, Node),
@@ -119,7 +119,7 @@ try {
         return
     }
 
-    # 5. Inno Setup — system copy if present, else a throwaway portable one ---
+    # 5. Inno Setup - system copy if present, else a throwaway portable one ---
     Write-Host "==> Inno Setup installer" -ForegroundColor Cyan
     $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
     if (-not $iscc) {
@@ -127,7 +127,7 @@ try {
         if (Test-Path $sys) { $iscc = $sys }
     }
     if (-not $iscc) {
-        Write-Host "    no Inno Setup found — installing a throwaway copy into .build\tools" -ForegroundColor DarkGray
+        Write-Host "    no Inno Setup found - installing a throwaway copy into .build\tools" -ForegroundColor DarkGray
         $isexe = Join-Path $Tmp "innosetup.exe"
         Invoke-WebRequest "https://jrsoftware.org/download.php/is.exe" -OutFile $isexe
         $portableInno = Join-Path $Tools "innosetup"

@@ -2,7 +2,7 @@
 ; Compile on Windows with:  iscc win_app\installer.iss
 ; Expects the PyInstaller one-dir output at dist\DriveSyncManager\ (see build.ps1).
 ;
-; Per-user install into %LOCALAPPDATA%\Programs so there is no UAC/admin prompt —
+; Per-user install into %LOCALAPPDATA%\Programs so there is no UAC/admin prompt -
 ; friendlier for a non-technical user. Runtime state (model, CUDA libs, token, data)
 ; lives separately under %LOCALAPPDATA%\DriveSyncManager; on uninstall the user is
 ; asked whether to delete it too. The shared VC++ runtime is intentionally NOT
@@ -34,7 +34,7 @@ CloseApplicationsFilter=*.exe
 [Files]
 ; The entire PyInstaller one-dir output.
 Source: "..\dist\DriveSyncManager\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
-; Microsoft Visual C++ runtime — required by the native ML libraries (ctranslate2,
+; Microsoft Visual C++ runtime - required by the native ML libraries (ctranslate2,
 ; onnxruntime). Only extracted/run when it isn't already installed (see [Code]).
 Source: "vendor\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: VCRedistNeeded
 
@@ -47,7 +47,7 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 
 [Run]
 ; Install the VC++ runtime first, silently, and only if missing (this is the one
-; step that may show a UAC prompt — but only on a machine that lacks the runtime).
+; step that may show a UAC prompt - but only on a machine that lacks the runtime).
 Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; \
   StatusMsg: "Installing Microsoft Visual C++ runtime..."; Flags: waituntilterminated; Check: VCRedistNeeded
 ; Launch after install finishes.

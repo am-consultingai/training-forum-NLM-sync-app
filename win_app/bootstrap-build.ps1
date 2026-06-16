@@ -1,5 +1,5 @@
 <#
-  bootstrap-build.ps1 — set up a Windows machine, download the code, and build the
+  bootstrap-build.ps1 - set up a Windows machine, download the code, and build the
   installer locally. No GitHub account or sign-in required.
 
   What it does:
@@ -20,7 +20,7 @@
     powershell -ExecutionPolicy Bypass -File bootstrap-build.ps1 -Dir C:\dev\dsm
 
   Note: some winget installs may prompt for elevation (UAC). If a tool was just
-  installed but isn't found yet, open a NEW PowerShell window and re-run — the
+  installed but isn't found yet, open a NEW PowerShell window and re-run - the
   script is idempotent (installs are skipped, the code is re-downloaded, it builds).
 #>
 param(
@@ -71,7 +71,7 @@ if ($missing) {
     exit 1
 }
 
-# 2. Download the code (public repo ZIP — no auth, no Git) --------------------
+# 2. Download the code (public repo ZIP - no auth, no Git) --------------------
 Write-Host "==> Downloading $Repo ($Branch)" -ForegroundColor Cyan
 $zip = Join-Path $env:TEMP "dsm-src.zip"
 $tmp = Join-Path $env:TEMP "dsm-src"

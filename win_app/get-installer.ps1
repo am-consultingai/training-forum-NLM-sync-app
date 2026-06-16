@@ -1,5 +1,5 @@
 <#
-  get-installer.ps1 — build the Windows installer in GitHub Actions and download it.
+  get-installer.ps1 - build the Windows installer in GitHub Actions and download it.
 
   Runs the whole cloud-build flow from your PowerShell prompt:
     1. triggers the "Build Windows installer" workflow on GitHub,
@@ -7,7 +7,7 @@
     3. downloads the finished DriveSyncManager-Setup-*.exe,
     4. optionally launches it.
 
-  You do NOT need this repo cloned or any build tools installed — only the GitHub
+  You do NOT need this repo cloned or any build tools installed - only the GitHub
   CLI (gh). Save this one file anywhere and run it.
 
   Prerequisites:
