@@ -113,6 +113,18 @@ it from Linux/WSL.
 4. Pick a data folder → **Sync now** → files download, transcribe, chunk, upload to
    the output Drive folder.
 5. On a non-GPU box: confirm the CPU notice appears and transcription still works.
+6. Uninstall via Settings → Apps: confirm the app is removed and you're asked whether
+   to also delete the downloaded data; confirm the VC++ runtime is left intact.
+
+## Footprint & uninstall
+
+The app installs **per-user** (no admin) and **bundles its own Python** — it never
+touches any Python the machine already has, nor system PATH/registry. Uninstall (from
+Add/Remove Programs) removes the app, its bundled Python, and ffmpeg, then **asks**
+whether to also delete the app-private data under `%LOCALAPPDATA%\DriveSyncManager`
+(the ~3 GB model, CUDA libs, sign-in token, synced data). The only machine-wide piece,
+the **Visual C++ runtime, is intentionally not removed** — it's a shared component
+other software relies on, so removing it would risk breaking other apps.
 
 ---
 

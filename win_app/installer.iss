@@ -3,8 +3,10 @@
 ; Expects the PyInstaller one-dir output at dist\DriveSyncManager\ (see build.ps1).
 ;
 ; Per-user install into %LOCALAPPDATA%\Programs so there is no UAC/admin prompt —
-; friendlier for a non-technical user. All runtime state (model, token, data) lives
-; separately under %LOCALAPPDATA%\DriveSyncManager and is left intact on uninstall.
+; friendlier for a non-technical user. Runtime state (model, CUDA libs, token, data)
+; lives separately under %LOCALAPPDATA%\DriveSyncManager; on uninstall the user is
+; asked whether to delete it too. The shared VC++ runtime is intentionally NOT
+; removed on uninstall (other applications depend on it).
 
 #define AppName "Drive Sync Manager"
 #define AppVersion "1.0.0"
@@ -25,6 +27,9 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+; Let the (un)installer close the running tray app so its files aren't locked.
+CloseApplications=yes
+CloseApplicationsFilter=*.exe
 
 [Files]
 ; The entire PyInstaller one-dir output.
@@ -62,4 +67,27 @@ end;
 function VCRedistNeeded(): Boolean;
 begin
   Result := not VCRedistInstalled();
+end;
+
+// On uninstall, offer to delete the app's own downloaded data (model ~3 GB, CUDA
+// libs, OAuth token, synced data). This is app-private (under %LOCALAPPDATA%\
+// DriveSyncManager) so removing it can't affect other software. The shared VC++
+// runtime is deliberately left in place. Kept by default in a silent uninstall.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  dataDir: String;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    dataDir := ExpandConstant('{localappdata}\DriveSyncManager');
+    if DirExists(dataDir) and (not UninstallSilent) then
+    begin
+      if MsgBox('Also delete downloaded data for Drive Sync Manager?' + #13#10#13#10 +
+                'This includes the ~3 GB transcription model, GPU libraries, your ' +
+                'Google sign-in, and locally synced data at:' + #13#10 + dataDir + #13#10#13#10 +
+                'Choose No to keep it (e.g. if you plan to reinstall).',
+                mbConfirmation, MB_YESNO) = IDYES then
+        DelTree(dataDir, True, True, True);
+    end;
+  end;
 end;
