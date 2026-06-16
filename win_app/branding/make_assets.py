@@ -36,8 +36,9 @@ def _fit(img: Image.Image, max_w: int, max_h: int) -> Image.Image:
 
 
 def make_icon():
-    """Square multi-size .ico from the cloud-sync mark."""
-    icon = cloud_art.render(256)
+    """Square multi-size .ico from the cloud-sync mark, on a TRANSPARENT
+    background so only the clouds show on the desktop/taskbar/Explorer."""
+    icon = cloud_art.render(256, bg=(0, 0, 0, 0))
     out = os.path.join(WIN_APP, "app.ico")
     icon.save(out, format="ICO",
               sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
