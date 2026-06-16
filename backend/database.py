@@ -1,6 +1,9 @@
+import logging
 import sqlite3
 import os
 from backend.app_config import get_db_path, get_data_root, ensure_data_dirs
+
+log = logging.getLogger(__name__)
 
 
 def get_connection() -> sqlite3.Connection:
@@ -10,19 +13,30 @@ def get_connection() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     # Wait out transient locks (DrvFS/Windows mounts can be slower than ext4).
     conn.execute("PRAGMA busy_timeout=30000")
-    # WAL lets the UI's read-polling run concurrently with the sync's writer
-    # WITHOUT either blocking the other — essential here, since several connections
-    # touch this DB at once. PRAGMA journal_mode returns the resulting mode rather
-    # than raising, so check it: if WAL didn't engage (a filesystem that can't back
-    # the -shm/-wal files), fall back to DELETE explicitly.
-    try:
-        mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
-        if str(mode).lower() != "wal":
-            conn.execute("PRAGMA journal_mode=DELETE")
-    except Exception:
-        pass
     conn.execute("PRAGMA foreign_keys=ON")
+    # NOTE: journal mode is deliberately NOT set here. WAL is a persistent property
+    # of the DB file, established once in init_db(); every connection inherits it.
+    # Running `PRAGMA journal_mode=WAL` on each connection (incl. the UI's frequent
+    # read-poll connections) needs a write lock just to set up, so it would fight
+    # the sync writer for locks on every request — the opposite of what we want.
     return conn
+
+
+def _set_journal_mode(conn: sqlite3.Connection) -> str:
+    """Switch the DB to WAL (persists in the file header). WAL lets the UI's
+    read-polling and the sync's writer run concurrently without blocking each
+    other. PRAGMA journal_mode returns the resulting mode rather than raising, so
+    if WAL didn't engage (a filesystem that can't back the -shm/-wal files), fall
+    back to DELETE explicitly. Call once, at startup, while nothing else is using
+    the DB — converting to WAL needs an exclusive moment."""
+    try:
+        mode = str(conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]).lower()
+        if mode != "wal":
+            conn.execute("PRAGMA journal_mode=DELETE")
+        return mode
+    except Exception as e:  # noqa: BLE001
+        log.warning("Could not set journal_mode: %s", e)
+        return "unknown"
 
 
 def _migrate_transcripts_to_mirror():
@@ -53,6 +67,11 @@ def init_db():
     _migrate_transcripts_to_mirror()
     ensure_data_dirs()
     conn = get_connection()
+    # Establish WAL now, while this is the only open connection — it persists in the
+    # DB header so every later connection inherits it. Logged so launcher.log shows
+    # the effective mode (a stuck/locked sync usually means WAL didn't engage).
+    mode = _set_journal_mode(conn)
+    log.info("SQLite journal_mode=%s (db=%s)", mode, get_db_path())
     c = conn.cursor()
 
     c.executescript("""

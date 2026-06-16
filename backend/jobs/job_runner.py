@@ -419,6 +419,10 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
 
             # Download all needed extracts CONCURRENTLY (the network round-trips run
             # in parallel); then write the seed rows serially (single SQLite writer).
+            # Commit in batches rather than holding one write transaction open across
+            # all ~1.3k rows: a long-held writer keeps the UI's polling reads waiting
+            # and starves the progress-event writer, so seeding could crawl. Frequent
+            # commits release the lock between batches and surface progress sooner.
             for (fid, expected, h, err) in _download_many(jobs, "Restoring extracted text"):
                 if err:
                     emit("stage_change", {"stage": "hydrate", "message": f"Hydrate failed: {err}"})
@@ -436,6 +440,8 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                     (data_rel(expected), _now(), h, mid, h, _now(), fid),
                 )
                 seeded += 1
+                if seeded % 100 == 0:
+                    conn.commit()
             conn.commit()
             emit("stage_change", {"stage": "hydrate",
                                   "message": f"Restored {seeded} extract(s); removed {orphaned} orphaned mirror file(s)"})
