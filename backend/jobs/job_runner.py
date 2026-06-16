@@ -72,35 +72,33 @@ def _emit(loop: asyncio.AbstractEventLoop, run_id: int, event_type: str, payload
     payload["run_id"] = run_id
     payload_str = json.dumps(payload, ensure_ascii=False)
 
-    # Persisting a progress event must NEVER abort the sync. This table is written
-    # from several connections concurrently (this short-lived one, the main sync
-    # connection, the transcription worker) while the UI polls read endpoints, so
-    # an INSERT can transiently hit "database is locked" even with busy_timeout.
-    # Retry briefly; if it still won't land, drop the log row and continue — the
-    # live SSE push below still delivers the event to any connected UI, and a lost
-    # telemetry line is never worth failing the whole run over.
-    for attempt in range(5):
-        try:
-            conn = get_connection()
-            try:
-                conn.execute(
-                    "INSERT INTO progress_events (run_id, event_type, payload) VALUES (?,?,?)",
-                    (run_id, event_type, payload_str),
-                )
-                conn.commit()
-            finally:
-                conn.close()
-            break
-        except sqlite3.OperationalError as e:
-            if "locked" in str(e).lower() and attempt < 4:
-                time.sleep(0.2 * (attempt + 1))
-                continue
-            log.warning("Dropping progress event (%s) — could not write: %s", event_type, e)
-            break
-
+    # Deliver to live SSE subscribers FIRST, so the UI keeps updating even when the
+    # DB is momentarily busy. _emit runs on the sync thread, so anything slow here
+    # stalls the whole run — pushing to the in-memory queues is non-blocking and
+    # must not be gated on the DB write below.
     msg = {"type": event_type, **payload}
     for q in list(_event_queues):
         loop.call_soon_threadsafe(q.put_nowait, msg)
+
+    # Then persist best-effort. The progress_events table is only a replay buffer
+    # for UIs that connect mid-run; a missed row never matters more than keeping
+    # the sync moving. It's written from several connections concurrently (this
+    # one, the main sync connection, the transcription worker), so an INSERT can
+    # transiently hit "database is locked". Use a SHORT busy timeout and a single
+    # attempt: on a contended/slow volume (e.g. the fresh-DB hydrate mid-batch on
+    # Windows) we drop the telemetry row rather than block the sync thread.
+    try:
+        conn = get_connection(busy_timeout_ms=2000)
+        try:
+            conn.execute(
+                "INSERT INTO progress_events (run_id, event_type, payload) VALUES (?,?,?)",
+                (run_id, event_type, payload_str),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except sqlite3.OperationalError as e:
+        log.warning("Dropping progress event (%s) — could not write: %s", event_type, e)
 
 
 def _now() -> str:

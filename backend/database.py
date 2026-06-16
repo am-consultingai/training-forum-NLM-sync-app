@@ -6,19 +6,30 @@ from backend.app_config import get_db_path, get_data_root, ensure_data_dirs
 log = logging.getLogger(__name__)
 
 
-def get_connection() -> sqlite3.Connection:
+def get_connection(busy_timeout_ms: int = 30000) -> sqlite3.Connection:
     # `timeout` is the C-level busy timeout; pair it with the PRAGMA below so both
     # the driver and the engine wait out transient locks instead of failing fast.
-    conn = sqlite3.connect(get_db_path(), check_same_thread=False, timeout=30)
+    # Callers that must never stall the caller thread on a contended DB (e.g. the
+    # best-effort progress-event writer) pass a short busy_timeout_ms.
+    conn = sqlite3.connect(get_db_path(), check_same_thread=False, timeout=busy_timeout_ms / 1000)
     conn.row_factory = sqlite3.Row
     # Wait out transient locks (DrvFS/Windows mounts can be slower than ext4).
-    conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
     conn.execute("PRAGMA foreign_keys=ON")
-    # NOTE: journal mode is deliberately NOT set here. WAL is a persistent property
-    # of the DB file, established once in init_db(); every connection inherits it.
-    # Running `PRAGMA journal_mode=WAL` on each connection (incl. the UI's frequent
-    # read-poll connections) needs a write lock just to set up, so it would fight
-    # the sync writer for locks on every request — the opposite of what we want.
+    # WAL is the DB's persistent journal mode (established once in init_db); every
+    # connection inherits it. Pair it with synchronous=NORMAL — in WAL this is
+    # crash-safe (no corruption; at worst the last commit is lost on a power cut)
+    # and skips the full fsync that synchronous=FULL does on EVERY commit. That
+    # fsync is near-free on ext4 but very slow on Windows/NTFS (amplified by AV
+    # scanning); leaving it on FULL makes the fresh-DB first-run hydrate (thousands
+    # of writes) crawl and starves concurrent writers into "database is locked".
+    # The DB is a rebuildable cache seeded from Drive, so NORMAL's durability
+    # trade-off is acceptable even if WAL ever failed to engage.
+    conn.execute("PRAGMA synchronous=NORMAL")
+    # NOTE: journal mode is deliberately NOT set here. Running `PRAGMA
+    # journal_mode=WAL` on each connection (incl. the UI's frequent read-poll
+    # connections) needs a write lock just to set up, so it would fight the sync
+    # writer for locks on every request — the opposite of what we want.
     return conn
 
 
