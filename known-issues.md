@@ -5,6 +5,9 @@ Forward-looking items for the Drive -> NotebookLM sync app and its Windows packa
 roadmap of requested improvements.)
 
 ## 1. Single root Drive folder (auto-create subfolders)
+> **Status: out of scope / won't do.** The app ships with working default folder
+> settings; the three-folder model is left as-is by decision.
+
 Today the app configures **three** separate Google Drive folders — source/input,
 chunks output, and the extracted-text mirror. Simplify to **one** configured root
 folder; the app creates and uses subfolders inside it, e.g.:
@@ -24,6 +27,11 @@ folder; the app creates and uses subfolders inside it, e.g.:
   with a single root-folder picker.
 
 ## 2. First-run setup that prompts for the OAuth client file
+> **Status: done.** `frontend/src/components/FirstRunWizard.tsx` walks first-run
+> users through model download → OAuth client JSON → Google sign-in → data folder,
+> skipping any step already satisfied. Replaces the old `ModelSetupGate` /
+> `SetupDialog` gates in `App.tsx`.
+
 The OAuth client JSON is currently loaded manually under **Settings -> Google
 sign-in**. Move it into the **first-run flow**: after the model download, guide the
 user to select their OAuth client JSON, then sign in, then choose the folder — a
@@ -34,6 +42,9 @@ simple wizard, so a non-technical user is led through setup on first open.
   and the `/api/auth/*` sign-in flow before the main UI appears.
 
 ## 3. "Powered by AM Consulting" footer
+> **Status: done.** Persistent footer in `App.tsx` with the AM Consulting wordmark
+> (`frontend/src/assets/am-logo.png`), linked to https://www.amconsultingai.com.
+
 Add a persistent footer to the app UI reading **"Powered by AM Consulting"** with the
 AM Consulting logo, hyperlinked to https://www.amconsultingai.com (open in a new tab).
 
@@ -41,6 +52,12 @@ AM Consulting logo, hyperlinked to https://www.amconsultingai.com (open in a new
   asset under `frontend/src/assets/` and bundle it via the normal Vite build.
 
 ## 4. Nicer, branded installer
+> **Status: done.** `win_app/installer.iss` now sets the AM Consulting publisher/
+> URLs, `SetupIconFile`, `WizardImageFile`/`WizardSmallImageFile`, and branded
+> welcome wording. Assets (`win_app/app.ico`, `win_app/branding/wizard-*.bmp`) are
+> generated from the wordmark by `win_app/branding/make_assets.py`. The EXE icon is
+> picked up by the existing `DriveSyncManager.spec` conditional.
+
 Improve the Inno Setup installer's look and add the AM Consulting logo.
 
 - `win_app/installer.iss`: set `WizardImageFile` (large left-side bitmap),

@@ -15,7 +15,10 @@
 [Setup]
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=Drive Sync Manager
+AppPublisher=AM Consulting
+AppPublisherURL=https://www.amconsultingai.com
+AppSupportURL=https://www.amconsultingai.com
+AppContactURL=https://www.amconsultingai.com
 DefaultDirName={localappdata}\Programs\DriveSyncManager
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -25,11 +28,20 @@ OutputBaseFilename=DriveSyncManager-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+; AM Consulting branding: app/setup icon + wizard banner bitmaps.
+SetupIconFile=app.ico
+WizardImageFile=branding\wizard-large.bmp
+WizardSmallImageFile=branding\wizard-small.bmp
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 ; Let the (un)installer close the running tray app so its files aren't locked.
 CloseApplications=yes
 CloseApplicationsFilter=*.exe
+
+[Messages]
+; Branded welcome wording (AM Consulting only).
+WelcomeLabel1=Welcome to the {#AppName} Setup
+WelcomeLabel2=This will install {#AppName} on your computer — a Google Drive → NotebookLM sync tool by AM Consulting.%n%nIt installs for the current user only, so no administrator approval is needed. Click Next to continue.
 
 [Files]
 ; The entire PyInstaller one-dir output.

@@ -1,8 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { FileTree } from './components/FileTree/FileTree';
 import { SyncPanel } from './components/SyncPanel/SyncPanel';
-import { SetupDialog } from './components/SetupDialog';
-import { ModelSetupGate } from './components/ModelSetupGate';
+import { FirstRunWizard } from './components/FirstRunWizard';
 import { StatusSummary } from './components/StatusSummary';
 import { AuthBanner } from './components/AuthBanner';
 import { LogsPanel } from './components/LogsPanel';
@@ -12,6 +11,7 @@ import { useFileTree } from './hooks/useFileTree';
 import { useSSE } from './hooks/useSSE';
 import { api } from './api/client';
 import type { ProgressEvent } from './types';
+import amLogo from './assets/am-logo.png';
 import './App.css';
 
 export default function App() {
@@ -24,8 +24,7 @@ export default function App() {
   const [lastEvent, setLastEvent] = useState<ProgressEvent | null>(null);
   const [live, setLive] = useState<LiveProgress | null>(null);
 
-  const [modelReady, setModelReady] = useState(false);
-  const [needsSetup, setNeedsSetup] = useState(false);
+  const [setupComplete, setSetupComplete] = useState(false);
   const [dataFolder, setDataFolder] = useState<string | null>(null);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [redirectUri, setRedirectUri] = useState('http://localhost:8000/api/auth/callback');
@@ -42,28 +41,26 @@ export default function App() {
     } catch {}
   }, []);
 
-  useEffect(() => {
-    async function init() {
-      try {
-        const [cfg, sum, syncStatus] = await Promise.all([
-          api.getConfig(),
-          api.getStatusSummary(),
-          api.getSyncStatus(),
-        ]);
-        setNeedsSetup(!(cfg.data_folder_configured as boolean));
-        setDataFolder((cfg.data_folder as string) || null);
-        setSummary(sum);
-        // Detect in-flight sync started outside the UI (e.g. scheduled or API)
-        if (syncStatus.active) {
-          setIsRunning(true);
-          refresh();
-        }
-      } catch {}
-      finally { setSummaryLoading(false); }
-      refreshAuth();
-    }
-    init();
+  const init = useCallback(async () => {
+    try {
+      const [cfg, sum, syncStatus] = await Promise.all([
+        api.getConfig(),
+        api.getStatusSummary(),
+        api.getSyncStatus(),
+      ]);
+      setDataFolder((cfg.data_folder as string) || null);
+      setSummary(sum);
+      // Detect in-flight sync started outside the UI (e.g. scheduled or API)
+      if (syncStatus.active) {
+        setIsRunning(true);
+        refresh();
+      }
+    } catch {}
+    finally { setSummaryLoading(false); }
+    refreshAuth();
   }, [refreshAuth, refresh]);
+
+  useEffect(() => { init(); }, [init]);
 
   useEffect(() => {
     const onFocus = () => refreshAuth();
@@ -152,15 +149,14 @@ export default function App() {
     refresh();
   }
 
-  // Block the app until the transcription model is present (first-run download).
-  if (!modelReady) {
-    return <ModelSetupGate onReady={() => setModelReady(true)} />;
+  // First-run wizard: model download → Google client → sign-in → data folder.
+  // Renders nothing once every step is already satisfied.
+  if (!setupComplete) {
+    return <FirstRunWizard onComplete={() => { setSetupComplete(true); init(); }} />;
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
-      {needsSetup && <SetupDialog onConfigured={(p) => { setDataFolder(p); setNeedsSetup(false); }} />}
-
       <header style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         <span style={{ fontSize: '1.2rem' }}>📚</span>
         <h1 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>Drive → NotebookLM Sync</h1>
@@ -268,6 +264,26 @@ export default function App() {
           )}
         </main>
       </div>
+
+      <footer style={{
+        flexShrink: 0, borderTop: '1px solid #1e293b', background: '#0b0f19',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        padding: '8px 16px',
+      }}>
+        <a
+          href="https://www.amconsultingai.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="AM Consulting — amconsultingai.com"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none',
+            color: '#94a3b8', fontSize: '0.72rem',
+          }}
+        >
+          <span>Powered by</span>
+          <img src={amLogo} alt="AM Consulting" style={{ height: 16, display: 'block' }} />
+        </a>
+      </footer>
     </div>
   );
 }
