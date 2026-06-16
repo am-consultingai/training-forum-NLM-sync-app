@@ -65,12 +65,15 @@ $portableInno = $null   # set if we install a throwaway Inno Setup into .build
 
 try {
     # 0. Remove any existing installation first, so a fresh install of the new
-    #    build has no leftovers. Keeps the downloaded model/data (no re-download).
-    #    On a clean build machine (e.g. CI) this simply finds nothing to remove.
+    #    build has no leftovers. Prompts whether to delete or keep the downloaded
+    #    data folder (model/synced data) — same as the uninstaller. Answering no
+    #    (the default) keeps it, so there's no re-download. On a clean build
+    #    machine (e.g. CI) there's no data folder, so cleanup never prompts and a
+    #    non-interactive Read-Host just defaults to keep.
     $cleanup = Join-Path $WinApp "cleanup-windows.ps1"
     if (Test-Path $cleanup) {
-        Write-Host "==> Removing any existing installation first (keeping downloaded data)" -ForegroundColor Cyan
-        try { & $cleanup -KeepData } catch { Write-Host "  (cleanup skipped: $($_.Exception.Message))" -ForegroundColor DarkGray }
+        Write-Host "==> Removing any existing installation first" -ForegroundColor Cyan
+        try { & $cleanup } catch { Write-Host "  (cleanup skipped: $($_.Exception.Message))" -ForegroundColor DarkGray }
     }
 
     # 1. Isolated Python venv ------------------------------------------------
