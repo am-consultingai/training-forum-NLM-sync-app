@@ -66,11 +66,24 @@ $portableInno = $null   # set if we install a throwaway Inno Setup into .build
 try {
     # 1. Isolated Python venv ------------------------------------------------
     Write-Host "==> Creating isolated Python venv (.build\venv)" -ForegroundColor Cyan
-    if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-        throw "Python not found on PATH. Install Python 3.12 (winget install Python.Python.3.12) and re-run."
+    # Resolve a REAL Python. The bare 'python' command is often the Microsoft Store
+    # alias stub, which silently creates nothing. Prefer the 'py' launcher; otherwise
+    # use a 'python' that is not the WindowsApps stub.
+    $pyExe = $null; $pyArgs = @()
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        $pyExe = "py"; $pyArgs = @("-3")
+    } else {
+        $cand = Get-Command python -ErrorAction SilentlyContinue
+        if ($cand -and ($cand.Source -notlike "*\WindowsApps\*")) { $pyExe = $cand.Source }
     }
-    if (-not (Test-Path (Join-Path $Venv "Scripts\python.exe"))) { & python -m venv $Venv }
+    if (-not $pyExe) {
+        throw "No usable Python found. Install Python 3.12 from python.org (or 'winget install Python.Python.3.12'), then re-run. A Microsoft Store 'python' alias will not work."
+    }
     $py = Join-Path $Venv "Scripts\python.exe"
+    if (-not (Test-Path $py)) { & $pyExe @pyArgs -m venv $Venv }
+    if (-not (Test-Path $py)) {
+        throw "venv creation failed - '$py' was not created. Your Python is likely the Microsoft Store stub; install real Python 3.12 from python.org and re-run."
+    }
     & $py -m pip install --upgrade pip
     & $py -m pip install -r requirements.txt pyinstaller
 
