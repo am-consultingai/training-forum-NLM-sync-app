@@ -68,37 +68,92 @@ def unsubscribe_events(q: asyncio.Queue):
         pass
 
 
+# ── Background progress-event persistence ─────────────────────────────────────
+# _emit() runs on the sync thread, which processes thousands of files per run and
+# emits a file_status event for each. Writing those rows synchronously stalls the
+# sync whenever the DB is busy (under lock contention a single INSERT can block
+# for seconds), which on a fresh-DB Windows restore made the run crawl ~2s/file.
+# So _emit pushes to the live SSE stream inline (instant, never gated on the DB)
+# and hands the row to this single background writer, which batches inserts on one
+# connection. If the DB is contended the rows queue or drop — the progress_events
+# table is only a replay buffer for UIs that connect mid-run, and the live SSE
+# push already delivered the event — but the SYNC THREAD never waits on it.
+_pe_queue: "queue.Queue" = queue.Queue(maxsize=20000)
+_pe_writer_started = False
+_pe_lock = threading.Lock()
+_pe_dropped = 0
+_pe_last_drop_log = 0.0
+
+
+def _progress_writer_loop():
+    conn = None
+    global _pe_dropped, _pe_last_drop_log
+    while True:
+        first = _pe_queue.get()
+        batch = [first] if first is not None else []
+        # Opportunistically drain whatever else is queued so a burst of per-file
+        # events commits as ONE transaction — far fewer lock acquisitions.
+        for _ in range(499):
+            try:
+                row = _pe_queue.get_nowait()
+            except queue.Empty:
+                break
+            if row is not None:
+                batch.append(row)
+        if not batch:
+            continue
+        try:
+            if conn is None:
+                conn = get_connection()
+            conn.executemany(
+                "INSERT INTO progress_events (run_id, event_type, payload) VALUES (?,?,?)",
+                batch,
+            )
+            conn.commit()
+        except Exception:  # noqa: BLE001
+            # Telemetry is droppable; the writer must NEVER die (a dead writer
+            # means no progress rows for the rest of the process). Catch everything
+            # — "database is locked" (OperationalError) or any other error — reset
+            # the connection, drop this batch, and log a throttled summary instead
+            # of one line per event.
+            try:
+                if conn is not None:
+                    conn.close()
+            except Exception:
+                pass
+            conn = None
+            _pe_dropped += len(batch)
+            now = time.monotonic()
+            if now - _pe_last_drop_log > 30:
+                log.warning("Dropped %d progress event(s) — DB busy (live SSE unaffected)", _pe_dropped)
+                _pe_last_drop_log = now
+            time.sleep(0.1)
+
+
+def _ensure_progress_writer():
+    global _pe_writer_started
+    with _pe_lock:
+        if not _pe_writer_started:
+            threading.Thread(target=_progress_writer_loop, name="progress-writer", daemon=True).start()
+            _pe_writer_started = True
+
+
 def _emit(loop: asyncio.AbstractEventLoop, run_id: int, event_type: str, payload: dict):
     payload["run_id"] = run_id
     payload_str = json.dumps(payload, ensure_ascii=False)
 
-    # Deliver to live SSE subscribers FIRST, so the UI keeps updating even when the
-    # DB is momentarily busy. _emit runs on the sync thread, so anything slow here
-    # stalls the whole run — pushing to the in-memory queues is non-blocking and
-    # must not be gated on the DB write below.
+    # Deliver to live SSE subscribers FIRST and inline — non-blocking, never gated
+    # on the DB, so the UI keeps updating regardless of DB contention.
     msg = {"type": event_type, **payload}
     for q in list(_event_queues):
         loop.call_soon_threadsafe(q.put_nowait, msg)
 
-    # Then persist best-effort. The progress_events table is only a replay buffer
-    # for UIs that connect mid-run; a missed row never matters more than keeping
-    # the sync moving. It's written from several connections concurrently (this
-    # one, the main sync connection, the transcription worker), so an INSERT can
-    # transiently hit "database is locked". Use a SHORT busy timeout and a single
-    # attempt: on a contended/slow volume (e.g. the fresh-DB hydrate mid-batch on
-    # Windows) we drop the telemetry row rather than block the sync thread.
+    # Hand persistence to the background writer; never write on the sync thread.
+    _ensure_progress_writer()
     try:
-        conn = get_connection(busy_timeout_ms=2000)
-        try:
-            conn.execute(
-                "INSERT INTO progress_events (run_id, event_type, payload) VALUES (?,?,?)",
-                (run_id, event_type, payload_str),
-            )
-            conn.commit()
-        finally:
-            conn.close()
-    except sqlite3.OperationalError as e:
-        log.warning("Dropping progress event (%s) — could not write: %s", event_type, e)
+        _pe_queue.put_nowait((run_id, event_type, payload_str))
+    except queue.Full:
+        pass  # telemetry backlog full — drop; the live push already delivered it
 
 
 def _now() -> str:
