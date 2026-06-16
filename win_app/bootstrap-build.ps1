@@ -3,12 +3,14 @@
   installer locally. No GitHub account or sign-in required.
 
   What it does:
-    1. installs the system prerequisites via winget (Python 3.12, Node.js LTS,
-       Inno Setup) — skipping any already present,
+    1. ensures Python 3.12 is installed (via winget, only if missing),
     2. downloads the repo as a ZIP (the repo is public; no auth, no Git needed),
-    3. runs win_app\build.ps1, which downloads the Python/Node/ffmpeg/VC++ deps and
+    3. runs win_app\build.ps1, which builds everything inside a self-contained
+       .build folder (venv, portable Node, portable Inno Setup, all deps) and
        produces dist\installer\DriveSyncManager-Setup-<ver>.exe,
     4. (with -Run) launches the finished installer.
+
+  build.ps1 self-cleans .build, so the only thing installed machine-wide is Python.
 
   This is a standalone bootstrap: save just this one file and run it.
 
@@ -56,13 +58,13 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
 }
 
 # 1. System prerequisites -----------------------------------------------------
+# Only Python is needed system-wide; build.ps1 provisions Node and Inno Setup into
+# its own .build folder and cleans them up, so they aren't installed machine-wide.
 Write-Host "==> Installing system prerequisites" -ForegroundColor Cyan
-Ensure-Tool -WingetId "Python.Python.3.12"   -Command "python"
-Ensure-Tool -WingetId "OpenJS.NodeJS.LTS"    -Command "npm"
-Ensure-Tool -WingetId "JRSoftware.InnoSetup" -ExistsPath "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+Ensure-Tool -WingetId "Python.Python.3.12" -Command "python"
 Update-SessionPath
 
-$missing = @("python", "npm") | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) }
+$missing = @("python") | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) }
 if ($missing) {
     Write-Warning ("Just-installed tools not on PATH yet: {0}" -f ($missing -join ", "))
     Write-Warning "Open a NEW PowerShell window and re-run this script (installs will be skipped)."

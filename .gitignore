@@ -19,6 +19,7 @@ frontend/dist/
 # ── Build outputs (PyInstaller / Inno Setup), at repo root ───────────────────
 /build/
 /dist/
+/.build/
 
 # ── App data & large reference material ──────────────────────────────────────
 data/

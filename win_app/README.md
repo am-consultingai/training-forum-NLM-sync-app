@@ -81,21 +81,27 @@ users, who load it from **Settings → Google sign-in** on first run (it's store
 
 ## Build (on Windows)
 
-Prerequisites: Windows x64, **Python 3.12**, **Node.js**, and **Inno Setup 6**
-(for the installer step). Then, from the repo root:
+The only prerequisite is **Windows x64 + an existing Python 3.x on PATH**. From the
+repo root:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File win_app\build.ps1
 ```
 
-This will:
-1. create a build venv and install `requirements.txt` + PyInstaller,
-2. fetch `ffmpeg.exe` and `vc_redist.x64.exe` into `win_app\vendor\`,
-3. build the frontend with `npm run build` into `frontend\dist`,
-4. run PyInstaller → `dist\DriveSyncManager\`,
-5. compile the installer → `dist\installer\DriveSyncManager-Setup-<ver>.exe`.
+The build is **fully self-contained**. Everything transient is created under
+`<repo>\.build` and deleted at the end:
+1. an isolated **Python venv** (your Python is used only to spawn it — never modified;
+   no global site-packages or pip cache are touched),
+2. `ffmpeg.exe` + `vc_redist.x64.exe` into `win_app\vendor\`,
+3. a **portable Node** toolchain + `npm run build` → `frontend\dist`,
+4. PyInstaller → `dist\DriveSyncManager\`,
+5. **Inno Setup** (a system copy if present, otherwise a throwaway portable one in
+   `.build`) → `dist\installer\DriveSyncManager-Setup-<ver>.exe`.
 
-Flags: `-SkipInstaller` (one-dir only), `-SkipFrontend` (reuse existing `dist`).
+All pip/npm caches and temp downloads are redirected into `.build`, so **nothing is
+written to your user profile or `%TEMP%`**. Delete the repo folder and no trace
+remains on disk. Flags: `-KeepBuildEnv` (keep `.build` for faster re-runs),
+`-SkipInstaller` (app folder only), `-SkipFrontend` (reuse existing `dist`).
 
 ### Building must happen on Windows
 PyInstaller is not a cross-compiler — the Windows `.exe`/installer must be built on
