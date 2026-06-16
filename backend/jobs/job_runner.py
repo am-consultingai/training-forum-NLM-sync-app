@@ -116,11 +116,43 @@ def _extract_rel_path(drive_path: str) -> str:
     return drive_path.replace("\\", "/") + ".txt"
 
 
+# Characters illegal in Windows (Win32/NTFS) file names. '/' and '\' are path
+# separators, handled by splitting into components first. We sanitize on EVERY
+# platform so the on-disk layout — and the relative paths stored in the DB — are
+# identical everywhere and a data folder stays portable across OSes. A Drive name
+# may legally contain '"', ':', '?', '*', etc. (fine on Linux, where local dev
+# runs), but those make an unwritable path on Windows: open() raises
+# [Errno 22] Invalid argument. Unicode (e.g. Hebrew) is preserved — only the
+# forbidden ASCII set is replaced.
+_WIN_ILLEGAL_RE = re.compile(r'[<>:"|?*\x00-\x1f]')
+_WIN_RESERVED = {"CON", "PRN", "AUX", "NUL",
+                 *(f"COM{i}" for i in range(1, 10)),
+                 *(f"LPT{i}" for i in range(1, 10))}
+
+
+def _safe_component(name: str) -> str:
+    """One path segment made safe for the local filesystem (Windows-strict)."""
+    name = _WIN_ILLEGAL_RE.sub("_", name).rstrip(" .")  # trailing space/dot illegal on Windows
+    if not name:
+        return "_"
+    if name.split(".", 1)[0].upper() in _WIN_RESERVED:
+        name = "_" + name  # avoid reserved device names (CON, NUL, COM1, …)
+    return name
+
+
+def _safe_local_components(rel_path: str) -> list:
+    """Split a forward-slash drive/rel path into filesystem-safe components.
+    Embedded name-slashes are treated as separators (consistent with how the
+    mirror layout and source downloads are built)."""
+    return [_safe_component(p) for p in rel_path.replace("\\", "/").split("/") if p]
+
+
 def _extracted_local_path(extracted_dir: str, drive_path: str) -> str:
     """Local on-disk path for a source file's extracted text, mirroring the source
-    tree. Derived from the rel path so name-slashes nest consistently."""
+    tree. Derived from the rel path so name-slashes nest consistently, with each
+    component sanitized for the local filesystem."""
     rel = _extract_rel_path(drive_path)
-    return os.path.join(extracted_dir, *rel.split("/"))
+    return os.path.join(extracted_dir, *_safe_local_components(rel))
 
 
 def _group_of(drive_path: str) -> str:
@@ -673,7 +705,7 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
             existing = existing_ids.get(item["id"])
             change = detect_change(existing, item)
             proc_type = get_processing_type(item["mimeType"], item["name"], ignore_exts)
-            safe_path = item["drive_path"].replace("/", os.sep).replace("\\", os.sep)
+            safe_path = os.path.join(*_safe_local_components(item["drive_path"]))
 
             if change == "unchanged":
                 proc = conn.execute(
