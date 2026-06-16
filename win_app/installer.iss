@@ -18,7 +18,6 @@ AppVersion={#AppVersion}
 AppPublisher=AM Consulting
 AppPublisherURL=https://www.amconsultingai.com
 AppSupportURL=https://www.amconsultingai.com
-AppContactURL=https://www.amconsultingai.com
 DefaultDirName={localappdata}\Programs\DriveSyncManager
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
