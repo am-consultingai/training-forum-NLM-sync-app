@@ -9,12 +9,39 @@ by accident.
 
 Tray menu: Open · Run sync now · Quit.
 """
+import os
 import socket
 import sys
 import threading
 import time
 import urllib.request
 import webbrowser
+
+
+def _ensure_std_streams():
+    """In a windowed PyInstaller build (console=False) sys.stdout/stderr are None,
+    which crashes libraries that probe them (e.g. uvicorn's log formatter calls
+    sys.stdout.isatty()). Point them at a real, writable stream — a log file under
+    the app's data dir when possible, otherwise the null device."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    stream = None
+    try:
+        log_dir = os.path.join(
+            os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+            "DriveSyncManager", "logs",
+        )
+        os.makedirs(log_dir, exist_ok=True)
+        stream = open(os.path.join(log_dir, "launcher.log"), "a", buffering=1, encoding="utf-8")
+    except Exception:
+        stream = open(os.devnull, "w")
+    if sys.stdout is None:
+        sys.stdout = stream
+    if sys.stderr is None:
+        sys.stderr = stream
+
+
+_ensure_std_streams()
 
 HOST = "127.0.0.1"
 PORT = 8000
