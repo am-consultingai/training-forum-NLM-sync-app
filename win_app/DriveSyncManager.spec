@@ -25,11 +25,17 @@ hiddenimports = (
     collect_submodules("uvicorn")
     + collect_submodules("backend")
     + collect_submodules("win_app")
+    # APScheduler loads jobstores/executors/triggers — and tzlocal — via lazy,
+    # plugin-style imports that PyInstaller's static analysis misses. Collect the
+    # whole package so the scheduler imports cleanly in the frozen build.
+    + collect_submodules("apscheduler")
     + [
         "faster_whisper",
         "ctranslate2",
         "huggingface_hub",
         "apscheduler.schedulers.asyncio",
+        "tzlocal",       # APScheduler's local-timezone lookup
+        "tzdata",        # IANA tz database (Windows has no system zoneinfo)
         "google_auth_oauthlib.flow",
         "pystray._win32",
         "PIL.Image",
@@ -40,6 +46,9 @@ hiddenimports = (
 datas = (
     collect_data_files("faster_whisper")
     + collect_data_files("huggingface_hub")
+    # The tzdata package ships the IANA tz database as data files; zoneinfo/tzlocal
+    # read them at runtime, so they must be bundled (no system copy on Windows).
+    + collect_data_files("tzdata")
     + [
         (os.path.join(REPO, "frontend", "dist"), "frontend_dist"),
         (os.path.join(WIN_APP, "vendor", "ffmpeg.exe"), "."),

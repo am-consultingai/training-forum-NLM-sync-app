@@ -5,6 +5,11 @@ google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
 APScheduler
+# APScheduler resolves the local timezone via tzlocal, which on Windows needs the
+# pip-installable IANA tz database (Windows ships none). Pinned explicitly so the
+# build venv has them and PyInstaller can bundle them.
+tzlocal
+tzdata
 python-multipart
 pypdf
 python-pptx
