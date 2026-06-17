@@ -1,4 +1,4 @@
-# Drive Sync Manager — Windows desktop app
+# sHaRe sync — Windows desktop app
 
 This folder packages the Drive → NotebookLM sync app as a Windows installer for
 non-technical users. The user double-clicks `Setup.exe`, gets a tray app that runs
@@ -19,7 +19,7 @@ shared Google account. See *Follow-ups* at the bottom.
 | `app_core/bootstrap.py` | First-run download of the model + (NVIDIA only) CUDA libs. |
 | `app_core/setup_api.py` | `/api/setup/*` endpoints driving the first-run screen. |
 | `launcher.py` | Tray app; PyInstaller entry point. Starts the backend, opens the browser. |
-| `DriveSyncManager.spec` | PyInstaller one-dir build spec. |
+| `sHaRe-sync.spec` | PyInstaller one-dir build spec. |
 | `installer.iss` | Inno Setup script (per-user install, no admin prompt). |
 | `build.ps1` | One-command build: deps → ffmpeg → frontend → PyInstaller → installer. |
 | `oauth_client.sample.json` | Sample showing the OAuth client shape. **Not bundled** — see below. |
@@ -28,8 +28,8 @@ shared Google account. See *Follow-ups* at the bottom.
 ### Where things live at runtime
 
 ```
-%LOCALAPPDATA%\Programs\DriveSyncManager\   app install (read-only)
-%LOCALAPPDATA%\DriveSyncManager\            writable state:
+%LOCALAPPDATA%\Programs\sHaRe-sync\   app install (read-only)
+%LOCALAPPDATA%\sHaRe-sync\            writable state:
     app_config.json   model\   cuda\   creds\token.json   data\
 ```
 
@@ -58,7 +58,7 @@ The user needs **no Python/Node/ffmpeg** — those are bundled. They just run
 Each install signs into **one shared Google account**. The OAuth client is **not
 shipped inside the app** — you create it once and distribute the JSON file to your
 users, who load it from **Settings → Google sign-in** on first run (it's stored under
-`%LOCALAPPDATA%\DriveSyncManager\creds\oauth_client.json`, never in the installer).
+`%LOCALAPPDATA%\sHaRe-sync\creds\oauth_client.json`, never in the installer).
 
 1. In the shared account's [Google Cloud Console](https://console.cloud.google.com/),
    create (or pick) a project and enable the **Google Drive API**.
@@ -94,9 +94,9 @@ The build is **fully self-contained**. Everything transient is created under
    no global site-packages or pip cache are touched),
 2. `ffmpeg.exe` + `vc_redist.x64.exe` into `win_app\vendor\`,
 3. a **portable Node** toolchain + `npm run build` → `frontend\dist`,
-4. PyInstaller → `dist\DriveSyncManager\`,
+4. PyInstaller → `dist\sHaRe-sync\`,
 5. **Inno Setup** (a system copy if present, otherwise a throwaway portable one in
-   `.build`) → `dist\installer\DriveSyncManager-Setup-<ver>.exe`.
+   `.build`) → `dist\installer\sHaRe-sync-Setup-<ver>.exe`.
 
 All pip/npm caches and temp downloads are redirected into `.build`, so **nothing is
 written to your user profile or `%TEMP%`**. Delete the repo folder and no trace
@@ -127,7 +127,7 @@ it from Linux/WSL.
 The app installs **per-user** (no admin) and **bundles its own Python** — it never
 touches any Python the machine already has, nor system PATH/registry. Uninstall (from
 Add/Remove Programs) removes the app, its bundled Python, and ffmpeg, then **asks**
-whether to also delete the app-private data under `%LOCALAPPDATA%\DriveSyncManager`
+whether to also delete the app-private data under `%LOCALAPPDATA%\sHaRe-sync`
 (the ~3 GB model, CUDA libs, sign-in token, synced data). The only machine-wide piece,
 the **Visual C++ runtime, is intentionally not removed** — it's a shared component
 other software relies on, so removing it would risk breaking other apps.

@@ -1,19 +1,19 @@
-; Inno Setup script for Drive Sync Manager.
+; Inno Setup script for sHaRe sync.
 ; Compile on Windows with:  iscc win_app\installer.iss
-; Expects the PyInstaller one-dir output at dist\DriveSyncManager\ (see build.ps1).
+; Expects the PyInstaller one-dir output at dist\sHaRe-sync\ (see build.ps1).
 ;
 ; Per-user install into %LOCALAPPDATA%\Programs so there is no UAC/admin prompt -
 ; friendlier for a non-technical user. Runtime state (model, CUDA libs, token, data)
-; lives separately under %LOCALAPPDATA%\DriveSyncManager; on uninstall the user is
+; lives separately under %LOCALAPPDATA%\sHaRe-sync; on uninstall the user is
 ; asked whether to delete it too. The shared VC++ runtime is intentionally NOT
 ; removed on uninstall (other applications depend on it).
 
-; Display name shown to users (window/shortcut/uninstall entry). The internal
-; identifiers below (AppExe, install dir, data dir, output filename) deliberately
-; stay "DriveSyncManager" so an existing install's data folder isn't orphaned.
+; "sHaRe sync" is the display name shown to users (window/shortcut/uninstall
+; entry). The internal identifiers below (AppExe, install dir, data dir, output
+; filename) use the filesystem-safe form "sHaRe-sync".
 #define AppName "sHaRe sync"
 #define AppVersion "1.0.0"
-#define AppExe "DriveSyncManager.exe"
+#define AppExe "sHaRe-sync.exe"
 
 [Setup]
 AppName={#AppName}
@@ -21,12 +21,12 @@ AppVersion={#AppVersion}
 AppPublisher=AM Consulting
 AppPublisherURL=https://www.amconsultingai.com
 AppSupportURL=https://www.amconsultingai.com
-DefaultDirName={localappdata}\Programs\DriveSyncManager
+DefaultDirName={localappdata}\Programs\sHaRe-sync
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\dist\installer
-OutputBaseFilename=DriveSyncManager-Setup-{#AppVersion}
+OutputBaseFilename=sHaRe-sync-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -49,7 +49,7 @@ WelcomeLabel2=This will install {#AppName} on your computer â€” a Google Drive â
 
 [Files]
 ; The entire PyInstaller one-dir output.
-Source: "..\dist\DriveSyncManager\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\dist\sHaRe-sync\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 ; Microsoft Visual C++ runtime - required by the native ML libraries (ctranslate2,
 ; onnxruntime). Only extracted/run when it isn't already installed (see [Code]).
 Source: "vendor\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: VCRedistNeeded
@@ -110,7 +110,7 @@ end;
 
 // On uninstall, offer to delete the app's own downloaded data (model ~3 GB, CUDA
 // libs, OAuth token, synced data). This is app-private (under %LOCALAPPDATA%\
-// DriveSyncManager) so removing it can't affect other software. The shared VC++
+// sHaRe-sync) so removing it can't affect other software. The shared VC++
 // runtime is deliberately left in place. Kept by default in a silent uninstall.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
@@ -118,7 +118,7 @@ var
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    dataDir := ExpandConstant('{localappdata}\DriveSyncManager');
+    dataDir := ExpandConstant('{localappdata}\sHaRe-sync');
     if DirExists(dataDir) and (not UninstallSilent) then
     begin
       if MsgBox('Also delete downloaded data for {#AppName}?' + #13#10#13#10 +

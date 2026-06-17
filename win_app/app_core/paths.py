@@ -6,19 +6,19 @@ Two kinds of locations:
 
 * **Writable runtime state** — the Whisper model, downloaded CUDA libs, the OAuth
   token, ``app_config.json`` and the data folder — all live under a per-user
-  *app home* directory (``%LOCALAPPDATA%\\DriveSyncManager`` on Windows). The
+  *app home* directory (``%LOCALAPPDATA%\\sHaRe-sync`` on Windows). The
   install dir under ``Program Files`` is read-only, so nothing runtime goes there.
 
 * **Read-only bundled assets** — the shared OAuth client JSON, ffmpeg, and the
   built frontend — are read from the frozen bundle dir, or from the repo in dev.
 
-Override the app home with the ``DRIVESYNC_HOME`` env var (handy for tests).
+Override the app home with the ``SHARE_SYNC_HOME`` env var (handy for tests).
 """
 import os
 import shutil
 import sys
 
-APP_NAME = "DriveSyncManager"
+APP_NAME = "sHaRe-sync"
 
 
 def is_frozen() -> bool:
@@ -35,7 +35,7 @@ def _repo_root() -> str:
 
 def app_home() -> str:
     """Writable per-user directory holding all runtime state. Created on access."""
-    override = os.environ.get("DRIVESYNC_HOME")
+    override = os.environ.get("SHARE_SYNC_HOME")
     if override:
         base = override
     elif sys.platform == "win32":

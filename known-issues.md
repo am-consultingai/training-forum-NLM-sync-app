@@ -56,7 +56,7 @@ AM Consulting logo, hyperlinked to https://www.amconsultingai.com (open in a new
 > URLs, `SetupIconFile`, `WizardImageFile`/`WizardSmallImageFile`, and branded
 > welcome wording. Assets (`win_app/app.ico`, `win_app/branding/wizard-*.bmp`) are
 > generated from the wordmark by `win_app/branding/make_assets.py`. The EXE icon is
-> picked up by the existing `DriveSyncManager.spec` conditional.
+> picked up by the existing `sHaRe-sync.spec` conditional.
 
 Improve the Inno Setup installer's look and add the AM Consulting logo.
 
@@ -64,4 +64,4 @@ Improve the Inno Setup installer's look and add the AM Consulting logo.
   `WizardSmallImageFile` (top-right bitmap), a custom `SetupIconFile`, and refine the
   wizard wording. Provide the branded BMP/ICO assets under `win_app/`.
 - Also give the app a real icon: `SetupIconFile` plus the EXE `icon=` in
-  `win_app/DriveSyncManager.spec`.
+  `win_app/sHaRe-sync.spec`.

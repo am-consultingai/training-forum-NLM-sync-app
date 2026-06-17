@@ -29,7 +29,7 @@ def _ensure_std_streams():
     try:
         log_dir = os.path.join(
             os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
-            "DriveSyncManager", "logs",
+            "sHaRe-sync", "logs",
         )
         os.makedirs(log_dir, exist_ok=True)
         stream = open(os.path.join(log_dir, "launcher.log"), "a", buffering=1, encoding="utf-8")
@@ -144,7 +144,7 @@ def main():
         icon.stop()
 
     icon = pystray.Icon(
-        "drive_sync_manager",
+        "share_sync",
         _make_icon_image(),
         "sHaRe sync",
         menu=pystray.Menu(

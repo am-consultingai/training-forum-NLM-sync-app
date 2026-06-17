@@ -1,13 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller build spec for the Drive Sync Manager Windows app.
+PyInstaller build spec for the sHaRe sync Windows app.
 
 Produces a ONE-DIR bundle whose entry point is win_app/launcher.py (the tray app).
 It bundles the Python backend, the win_app package, the built React frontend, the
 shared OAuth client JSON, and ffmpeg.exe. It deliberately does NOT bundle the
 Whisper model or the CUDA libraries — those are downloaded on first launch.
 
-Build on Windows:  pyinstaller win_app\\DriveSyncManager.spec
+Build on Windows:  pyinstaller win_app\\sHaRe-sync.spec
 (see win_app/README.md for the full build pipeline / build.ps1)
 """
 import os
@@ -55,7 +55,7 @@ datas = (
         # The cloud-sync icon, loaded at runtime for the system-tray icon.
         (os.path.join(WIN_APP, "app.ico"), "."),
         # NOTE: the OAuth client JSON is deliberately NOT bundled — the user loads it
-        # at runtime via Settings (stored in %LOCALAPPDATA%\DriveSyncManager\creds).
+        # at runtime via Settings (stored in %LOCALAPPDATA%\sHaRe-sync\creds).
     ]
 )
 
@@ -81,7 +81,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="DriveSyncManager",
+    name="sHaRe-sync",
     console=False,           # tray app — no console window
     disable_windowed_traceback=False,
     icon=os.path.join(WIN_APP, "app.ico") if os.path.exists(os.path.join(WIN_APP, "app.ico")) else None,
@@ -91,5 +91,5 @@ coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    name="DriveSyncManager",   # -> dist/DriveSyncManager/
+    name="sHaRe-sync",   # -> dist/sHaRe-sync/
 )

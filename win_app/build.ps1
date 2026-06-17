@@ -15,7 +15,7 @@
   (use -KeepBuildEnv to keep it for faster re-runs). Delete the repo folder and no
   trace remains anywhere on disk.
 
-  Output: dist\installer\DriveSyncManager-Setup-<ver>.exe
+  Output: dist\installer\sHaRe-sync-Setup-<ver>.exe
 
   Prerequisites: Windows x64 + an existing Python 3.x on PATH. Node and Inno Setup
   are provisioned automatically into .build if not already present.
@@ -138,13 +138,13 @@ try {
 
     # 4. PyInstaller (work dir + dist inside the repo) -----------------------
     Write-Host "==> PyInstaller" -ForegroundColor Cyan
-    if (Test-Path "dist\DriveSyncManager") { Remove-Item -Recurse -Force "dist\DriveSyncManager" }
-    & $py -m PyInstaller "win_app\DriveSyncManager.spec" --noconfirm `
+    if (Test-Path "dist\sHaRe-sync") { Remove-Item -Recurse -Force "dist\sHaRe-sync" }
+    & $py -m PyInstaller "win_app\sHaRe-sync.spec" --noconfirm `
         --workpath (Join-Path $BuildRoot "pyinstaller") `
         --distpath (Join-Path $Repo "dist")
 
     if ($SkipInstaller) {
-        Write-Host "`nDone (app folder only): dist\DriveSyncManager\DriveSyncManager.exe" -ForegroundColor Green
+        Write-Host "`nDone (app folder only): dist\sHaRe-sync\sHaRe-sync.exe" -ForegroundColor Green
         return
     }
 

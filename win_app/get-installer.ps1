@@ -4,7 +4,7 @@
   Runs the whole cloud-build flow from your PowerShell prompt:
     1. triggers the "Build Windows installer" workflow on GitHub,
     2. waits for the Windows runner to build it (live progress),
-    3. downloads the finished DriveSyncManager-Setup-*.exe,
+    3. downloads the finished sHaRe-sync-Setup-*.exe,
     4. optionally launches it.
 
   You do NOT need this repo cloned or any build tools installed - only the GitHub
@@ -22,13 +22,13 @@
 param(
     [string]$Repo   = "am-consultingai/training-forum-NLM-sync-app",
     [string]$Ref    = "master",
-    [string]$OutDir = "$HOME\Downloads\DriveSyncManager",
+    [string]$OutDir = "$HOME\Downloads\sHaRe-sync",
     [switch]$Run                      # launch the installer after download
 )
 
 $ErrorActionPreference = "Stop"
 $workflow = "windows-build.yml"
-$artifact = "DriveSyncManager-Setup"
+$artifact = "sHaRe-sync-Setup"
 
 # 1. Preconditions ------------------------------------------------------------
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {

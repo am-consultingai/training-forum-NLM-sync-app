@@ -7,7 +7,7 @@
     2. downloads the repo as a ZIP (the repo is public; no auth, no Git needed),
     3. runs win_app\build.ps1, which builds everything inside a self-contained
        .build folder (venv, portable Node, portable Inno Setup, all deps) and
-       produces dist\installer\DriveSyncManager-Setup-<ver>.exe,
+       produces dist\installer\sHaRe-sync-Setup-<ver>.exe,
     4. (with -Run) launches the finished installer.
 
   build.ps1 self-cleans .build, so the only thing installed machine-wide is Python.

@@ -1,4 +1,4 @@
-# Builds the Windows installer (DriveSyncManager-Setup-<ver>.exe) on a Windows
+# Builds the Windows installer (sHaRe-sync-Setup-<ver>.exe) on a Windows
 # runner and uploads it as a downloadable artifact. Push a tag like v1.0.0 to also
 # attach it to a GitHub Release.
 #
@@ -42,7 +42,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DriveSyncManager-Setup
+          name: sHaRe-sync-Setup
           path: dist/installer/*.exe
           if-no-files-found: error
 

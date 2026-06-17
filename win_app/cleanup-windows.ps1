@@ -1,5 +1,5 @@
 <#
-  cleanup-windows.ps1 - find and remove a Drive Sync Manager installation.
+  cleanup-windows.ps1 - find and remove a sHaRe sync installation.
 
   Everything here is per-user, so no admin is needed. It:
     1. stops the app if it's running,
@@ -22,10 +22,10 @@ param(
     [switch]$DryRun         # show what would be removed, but remove nothing
 )
 
-$installDir = Join-Path $env:LOCALAPPDATA "Programs\DriveSyncManager"
-$dataDir    = Join-Path $env:LOCALAPPDATA "DriveSyncManager"
-$startMenu  = Join-Path ([Environment]::GetFolderPath('Programs')) "Drive Sync Manager"
-$desktopLnk = Join-Path ([Environment]::GetFolderPath('Desktop')) "Drive Sync Manager.lnk"
+$installDir = Join-Path $env:LOCALAPPDATA "Programs\sHaRe-sync"
+$dataDir    = Join-Path $env:LOCALAPPDATA "sHaRe-sync"
+$startMenu  = Join-Path ([Environment]::GetFolderPath('Programs')) "sHaRe sync"
+$desktopLnk = Join-Path ([Environment]::GetFolderPath('Desktop')) "sHaRe sync.lnk"
 
 function Remove-Path($path, $label) {
     if (-not (Test-Path $path)) { Write-Host "  [not found] $label" -ForegroundColor DarkGray; return }
@@ -38,13 +38,13 @@ function Remove-Path($path, $label) {
     }
 }
 
-Write-Host "==> Drive Sync Manager cleanup" -ForegroundColor Cyan
+Write-Host "==> sHaRe sync cleanup" -ForegroundColor Cyan
 
 # 1. Stop the app if it's running (otherwise its files are locked).
-$proc = Get-Process DriveSyncManager -ErrorAction SilentlyContinue
+$proc = Get-Process -Name "sHaRe-sync" -ErrorAction SilentlyContinue
 if ($proc) {
-    if ($DryRun) { Write-Host "  [would stop] running DriveSyncManager.exe" -ForegroundColor Yellow }
-    else { $proc | Stop-Process -Force; Write-Host "  [stopped] running DriveSyncManager.exe" -ForegroundColor Green }
+    if ($DryRun) { Write-Host "  [would stop] running sHaRe-sync.exe" -ForegroundColor Yellow }
+    else { $proc | Stop-Process -Force; Write-Host "  [stopped] running sHaRe-sync.exe" -ForegroundColor Green }
 }
 
 # 2. Proper uninstall via the registered uninstaller, if present.
