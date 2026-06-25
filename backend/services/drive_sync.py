@@ -81,14 +81,7 @@ def _list_one_folder(svc, folder_id: str, path_prefix: str, fields: str) -> list
         )
         resp = _run_with_timeout(req.execute, timeout_seconds=30)
         for item in resp.get("files", []):
-            # A '/' or '\' INSIDE a Drive name is a literal character, not a path
-            # separator (Drive allows them, e.g. "Leaders / Managers Dev"). Neutralize
-            # them so the name stays a single path component — otherwise drive_path,
-            # which is later split on '/', explodes the name into phantom nested
-            # directories (mangling the mirror layout and inflating the path toward
-            # Windows' 260-char MAX_PATH). item["name"] is left untouched for display.
-            safe_name = item["name"].replace("/", "_").replace("\\", "_")
-            item["drive_path"] = f"{path_prefix}/{safe_name}" if path_prefix else safe_name
+            item["drive_path"] = f"{path_prefix}/{item['name']}" if path_prefix else item["name"]
             out.append(item)
         page_token = resp.get("nextPageToken")
         if not page_token:

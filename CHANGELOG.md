@@ -13,8 +13,6 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **Deeply-nested folders with long (incl. Hebrew) names now download on every
   Windows machine**, regardless of the system long-path setting — destination
   paths use the Windows extended-length (`\\?\`) form, lifting the 260-char limit.
-- **Folder names containing `/`** (e.g. `Leaders / Managers Dev`) no longer split
-  into extra nested folders; a `/` or `\` inside a Drive name is kept literal.
 - **Audio-extraction failures now report ffmpeg's actual error** instead of a
   generic message, so the real cause is recorded.
 - **The packaged app ignores a stray `.env`** in its launch directory, which could
