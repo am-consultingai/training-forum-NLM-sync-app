@@ -337,7 +337,7 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 if attempt == 2:
                     raise
                 emit("stage_change", {"stage": "discover", "message": f"Retrying listing (attempt {attempt+2}/3): {e}"})
-                import time; time.sleep(5 * (attempt + 1))
+                time.sleep(5 * (attempt + 1))
         now = _now()
 
         existing_ids = {
@@ -690,6 +690,9 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                                         device=settings.whisper_device or "auto",
                                         compute_type=settings.whisper_compute_type or "auto",
                                     )
+                                    if getattr(transcriber, "fallback_reason", None):
+                                        emit("stage_change", {"stage": "process",
+                                              "message": f"GPU transcription unavailable ({transcriber.fallback_reason}) — falling back to CPU"})
                                     emit("stage_change", {"stage": "process", "message": f"Transcription model loaded — device: {transcriber.device} ({transcriber.compute_type})"})
                                 except Exception as te:
                                     raise ValueError(f"Transcriber load failed: {te}")
@@ -698,12 +701,13 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                             audio_path = src_path
                             tmp_audio = None
                             if ext in VIDEO_EXTS:
-                                fd, tmp_audio = tempfile.mkstemp(suffix=".mp3", dir="/tmp")
+                                fd, tmp_audio = tempfile.mkstemp(suffix=".mp3", dir=tempfile.gettempdir())
                                 os.close(fd)
-                                ok = extract_audio_from_video(src_path, tmp_audio, settings.ffmpeg_path)
-                                if not ok:
+                                try:
+                                    extract_audio_from_video(src_path, tmp_audio, settings.ffmpeg_path)
+                                except Exception:
                                     os.remove(tmp_audio)
-                                    raise ValueError("ffmpeg audio extraction failed")
+                                    raise  # carries ffmpeg's stderr → recorded as processing_error
                                 audio_path = tmp_audio
 
                             _fid, _fname = file_id, finfo["name"]
@@ -876,7 +880,6 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
         # until the next sync). So wait until the worker exits, with stall
         # detection as the only escape hatch.
         proc_queue.put(None)
-        import time
         _stall_limit = 3600   # seconds of zero processing progress => treat as stalled
         _seen = process_results["processed"] + process_results["failed"]
         _last_change = time.monotonic()

@@ -1,8 +1,15 @@
 import os
+import sys
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
 from backend import paths
+
+# In the packaged (PyInstaller) app, do NOT read a stray ./.env from whatever
+# directory the exe happens to be launched from — it can silently hijack the model
+# path and the data_dir (i.e. which database the app uses) based on launch location.
+# Frozen → real env vars + bundled defaults only. In dev (not frozen), .env is honored.
+_ENV_FILE = None if getattr(sys, "frozen", False) else ".env"
 
 
 class Settings(BaseSettings):
@@ -34,7 +41,7 @@ class Settings(BaseSettings):
     # Set ENABLE_SCHEDULER=1 to run the background daily sync (e.g. for dev).
     enable_scheduler: bool = False
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": _ENV_FILE, "env_file_encoding": "utf-8"}
 
     @property
     def downloads_dir(self) -> str:

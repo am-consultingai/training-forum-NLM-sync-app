@@ -94,20 +94,90 @@ def detect_device() -> tuple[str, str]:
     return "cpu", "int8"
 
 
+def _looks_like_cuda_error(exc: Exception) -> bool:
+    """True when an exception smells like a GPU/CUDA runtime problem — a missing or
+    incompatible cuBLAS/cuDNN/cudart, a driver/library version skew, or an
+    unsupported device. That's our signal to retry on CPU."""
+    s = f"{type(exc).__name__}: {exc}".lower()
+    return any(k in s for k in (
+        "cuda", "cublas", "cudnn", "cudart", "nvrtc", "nvidia", "gpu", "no kernel image",
+    ))
+
+
+def _load_whisper(model_path: str, device: str, compute_type: str):
+    from faster_whisper import WhisperModel
+    return WhisperModel(model_path, device=device, compute_type=compute_type)
+
+
+def _warmup(model) -> None:
+    """Force the GPU compute libs (cuBLAS/cuDNN) to actually load by running a tiny
+    inference. A WhisperModel can construct on CUDA yet only touch cuBLAS during the
+    first encode — so a successful load does NOT prove the GPU works. Pushing one
+    second of silence through the encoder surfaces a broken CUDA stack here, at
+    init, where we can still fall back, instead of mid-file where we can't."""
+    import numpy as np
+    segments, _ = model.transcribe(
+        np.zeros(16000, dtype="float32"), language="he", beam_size=1,
+    )
+    list(segments)  # drive the generator so the encoder (and cuBLAS) really run
+
+
 class Transcriber:
     def __init__(self, model_path: str, device: str = "auto", compute_type: str = "auto"):
-        from faster_whisper import WhisperModel
         if device == "auto" or compute_type == "auto":
             detected_device, detected_compute = detect_device()
             device = detected_device if device == "auto" else device
             compute_type = detected_compute if compute_type == "auto" else compute_type
-        log.info("Loading Whisper model on %s (%s)", device, compute_type)
-        self._model = WhisperModel(model_path, device=device, compute_type=compute_type)
+
         self._model_path = model_path
+        # Set when a GPU attempt fails and we fall back to CPU — the caller surfaces
+        # this in the run log/UI so the fallback is visible, not silent.
+        self.fallback_reason = None
+
+        # Try the GPU when asked, but never trust it blindly: detect_device() only
+        # proves the CUDA libs are *present*, not that they *load*. They can be
+        # incomplete (missing cudart), version-skewed, or target an unsupported GPU.
+        # Validate with a warmup and fall back to CPU on ANY failure, so transcription
+        # always completes rather than dying on a half-working GPU.
+        if device == "cuda":
+            try:
+                log.info("Loading Whisper model on GPU (CUDA, %s)", compute_type)
+                model = _load_whisper(model_path, "cuda", compute_type)
+                _warmup(model)
+                self._model, self.device, self.compute_type = model, "cuda", compute_type
+                log.info("GPU transcription ready (CUDA, %s)", compute_type)
+                return
+            except Exception as e:
+                log.warning("GPU unusable (%s) — falling back to CPU (int8)", e)
+                self.fallback_reason = str(e)
+                os.environ["CUDA_VISIBLE_DEVICES"] = ""  # stop ctranslate2 retrying CUDA
+                device, compute_type = "cpu", "int8"
+
+        log.info("Loading Whisper model on %s (%s)", device, compute_type)
+        self._model = _load_whisper(model_path, device, compute_type)
         self.device = device
         self.compute_type = compute_type
 
     def transcribe_file(
+        self,
+        audio_path: str,
+        output_path: str,
+        progress_callback: Optional[Callable[[float], None]] = None,
+    ) -> str:
+        try:
+            return self._do_transcribe(audio_path, output_path, progress_callback)
+        except Exception as e:
+            # Last-resort net: if the GPU dies mid-run despite the init warmup,
+            # reload on CPU and retry the file rather than failing it outright.
+            if self.device == "cuda" and _looks_like_cuda_error(e):
+                log.warning("GPU failed during transcription (%s) — reloading on CPU", e)
+                os.environ["CUDA_VISIBLE_DEVICES"] = ""
+                self._model = _load_whisper(self._model_path, "cpu", "int8")
+                self.device, self.compute_type = "cpu", "int8"
+                return self._do_transcribe(audio_path, output_path, progress_callback)
+            raise
+
+    def _do_transcribe(
         self,
         audio_path: str,
         output_path: str,

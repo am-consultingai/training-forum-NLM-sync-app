@@ -286,8 +286,11 @@ def clean_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
-def extract_audio_from_video(video_path: str, output_mp3_path: str, ffmpeg_path: str = "ffmpeg") -> bool:
-    """Extract mono 16kHz mp3 from video — no video stream, ready for Whisper."""
+def extract_audio_from_video(video_path: str, output_mp3_path: str, ffmpeg_path: str = "ffmpeg") -> None:
+    """Extract mono 16kHz mp3 from video — no video stream, ready for Whisper.
+
+    Raises RuntimeError carrying ffmpeg's own stderr on failure, so the real cause
+    is surfaced and recorded instead of collapsed into a generic message."""
     result = subprocess.run(
         [
             ffmpeg_path, "-i", video_path,
@@ -301,7 +304,12 @@ def extract_audio_from_video(video_path: str, output_mp3_path: str, ffmpeg_path:
         ],
         capture_output=True,
     )
-    return result.returncode == 0
+    if result.returncode != 0:
+        err = (result.stderr or b"").decode("utf-8", "replace").strip()
+        raise RuntimeError(
+            f"ffmpeg audio extraction failed (exit {result.returncode}): "
+            f"{err[-600:] or '(no stderr output)'}"
+        )
 
 
 def get_processing_type(mime_type: str, filename: str, ignore_exts=None) -> str:

@@ -81,7 +81,14 @@ def _list_one_folder(svc, folder_id: str, path_prefix: str, fields: str) -> list
         )
         resp = _run_with_timeout(req.execute, timeout_seconds=30)
         for item in resp.get("files", []):
-            item["drive_path"] = f"{path_prefix}/{item['name']}" if path_prefix else item["name"]
+            # A '/' or '\' INSIDE a Drive name is a literal character, not a path
+            # separator (Drive allows them, e.g. "Leaders / Managers Dev"). Neutralize
+            # them so the name stays a single path component — otherwise drive_path,
+            # which is later split on '/', explodes the name into phantom nested
+            # directories (mangling the mirror layout and inflating the path toward
+            # Windows' 260-char MAX_PATH). item["name"] is left untouched for display.
+            safe_name = item["name"].replace("/", "_").replace("\\", "_")
+            item["drive_path"] = f"{path_prefix}/{safe_name}" if path_prefix else safe_name
             out.append(item)
         page_token = resp.get("nextPageToken")
         if not page_token:
@@ -174,12 +181,23 @@ def _run_with_timeout(fn, timeout_seconds: int = 120):
             raise TimeoutError(f"Operation timed out after {timeout_seconds}s")
 
 
+def _long_path(path: str) -> str:
+    r"""On Windows, return an extended-length (\\?\) form of an absolute path so paths
+    longer than the 260-char MAX_PATH can be created/opened regardless of the
+    machine's LongPathsEnabled registry setting. Used ONLY at the filesystem-call
+    boundary — never stored in the DB or shown to the user. No-op off Windows."""
+    if os.name != "nt":
+        return path
+    p = os.path.abspath(path)
+    return p if p.startswith("\\\\?\\") else "\\\\?\\" + p
+
+
 def download_file(service, file_id: str, dest_path: str, timeout: int = 120):
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    os.makedirs(os.path.dirname(_long_path(dest_path)), exist_ok=True)
 
     def _do():
         request = service.files().get_media(fileId=file_id)
-        with open(dest_path, "wb") as f:
+        with open(_long_path(dest_path), "wb") as f:
             downloader = MediaIoBaseDownload(f, request)
             done = False
             while not done:
@@ -189,17 +207,17 @@ def download_file(service, file_id: str, dest_path: str, timeout: int = 120):
         _run_with_timeout(_do, timeout)
     except TimeoutError:
         # Remove partial file so a retry starts clean
-        if os.path.exists(dest_path):
-            os.remove(dest_path)
+        if os.path.exists(_long_path(dest_path)):
+            os.remove(_long_path(dest_path))
         raise
 
 
 def export_google_file(service, file_id: str, mime_type: str, dest_path: str, timeout: int = 60):
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    os.makedirs(os.path.dirname(_long_path(dest_path)), exist_ok=True)
 
     def _do():
         request = service.files().export_media(fileId=file_id, mimeType=mime_type)
-        with open(dest_path, "wb") as f:
+        with open(_long_path(dest_path), "wb") as f:
             downloader = MediaIoBaseDownload(f, request)
             done = False
             while not done:
@@ -208,6 +226,6 @@ def export_google_file(service, file_id: str, mime_type: str, dest_path: str, ti
     try:
         _run_with_timeout(_do, timeout)
     except TimeoutError:
-        if os.path.exists(dest_path):
-            os.remove(dest_path)
+        if os.path.exists(_long_path(dest_path)):
+            os.remove(_long_path(dest_path))
         raise
