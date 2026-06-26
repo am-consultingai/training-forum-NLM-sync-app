@@ -13,6 +13,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   in the app — "Found N extracts without a matching source. Delete or keep?" Approved
   deletions go to **Drive trash** (recoverable ~30 days), not a permanent delete.
 
+### Changed
+- **Cache matching now keys off the stable Drive `source_id`, not the file path.**
+  Deciding whether a source already has a usable extract — on both fresh-machine
+  hydration and per-file classification — matches the extract to its source by the
+  immutable `source_id` stamped on it, and uses md5 (binary) / modifiedTime
+  (Google-native) only to confirm it's current. A renamed/moved source, or any
+  path-scheme difference, no longer forces a needless re-download/re-transcription.
+  Path is kept solely as a fallback for legacy extracts without the stamp. (Verified
+  live: all 752 current extracts carry `source_id`.)
+
 ### Fixed
 - **Sync no longer aborts entirely when a single file fails to download.** A long
   path, a timeout, or a network hiccup used to crash the whole run; the problem

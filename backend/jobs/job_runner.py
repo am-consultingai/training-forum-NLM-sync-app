@@ -457,6 +457,20 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
             for it in drive_items
             if it["mimeType"] != "application/vnd.google-apps.folder"
         }
+        # Index sources by their STABLE Drive id, and extracts by the source_id they
+        # were stamped with at upload. The id survives renames/moves/path-scheme
+        # changes, so matching on it (not path) is what makes hydration robust — a
+        # path discrepancy can no longer cause a needless re-download or a deletion.
+        src_by_id = {
+            it["id"]: it
+            for it in drive_items
+            if it["mimeType"] != "application/vnd.google-apps.folder"
+        }
+        mirror_by_sid = {}
+        for _m in mirror_index.values():
+            _sid = (_m.get("appProperties") or {}).get("source_id")
+            if _sid:
+                mirror_by_sid[_sid] = _m
 
         if extracted_folder_id and mirror_index:
             emit("stage_change", {"stage": "hydrate", "message": "Restoring extracted text from Drive…"})
@@ -472,18 +486,21 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
             for rel_path, m in list(mirror_index.items()):
                 if not rel_path.endswith(".txt"):
                     continue
-                source_path = rel_path[:-4]
-                src = src_by_path.get(source_path)
+                # Match the extract to its source by the STABLE source_id stamped on
+                # it; fall back to path only for legacy extracts that predate the stamp.
+                sid = (m.get("appProperties") or {}).get("source_id")
+                src = src_by_id.get(sid) if sid else None
                 if src is None:
-                    # No source at THIS PATH — do NOT delete. A path discrepancy must
-                    # never destroy a valid extract (this is exactly what wrongly wiped
-                    # ~681 extracts). True orphans (source genuinely gone) are detected
-                    # by stable source_id below and queued for the user's review.
+                    src = src_by_path.get(rel_path[:-4])
+                if src is None:
+                    # Source genuinely gone — do NOT delete. Detected by source_id
+                    # below and queued for the user's review (never auto-removed).
                     continue
                 if not _mirror_entry_valid(m, src):
-                    continue  # source changed since extract → let it reprocess below
+                    continue  # source changed (md5/modifiedTime) → let it reprocess below
                 fid = src["id"]
-                expected = _extracted_local_path(extracted_dir, source_path)
+                # Local extract path follows the source's CURRENT path.
+                expected = _extracted_local_path(extracted_dir, src["drive_path"])
                 existing = proc_by_id.get(fid)
                 if (existing and existing["processing_status"] == "done"
                         and existing["extracted_drive_file_id"] == m["id"]
@@ -781,7 +798,10 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                         continue
 
             if proc_type != "skip":
-                entry = mirror_index.get(_extract_rel_path(item["drive_path"]))
+                # Find this source's cached extract by stable id (path fallback for
+                # legacy extracts). If it's current (md5/modifiedTime), fetch the small
+                # .txt instead of re-downloading + reprocessing the original.
+                entry = mirror_by_sid.get(item["id"]) or mirror_index.get(_extract_rel_path(item["drive_path"]))
                 if entry and _mirror_entry_valid(entry, item):
                     cache_jobs.append((item, _extracted_local_path(extracted_dir, item["drive_path"]),
                                        entry["id"], proc_type))
