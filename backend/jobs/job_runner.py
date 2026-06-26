@@ -449,7 +449,8 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
         # The Drive mirror + chunks folders are the source of truth for derived
         # state; the local DB is a cache. Seed it from Drive so a fresh/relocated
         # machine reuses all prior work (no re-download, no re-transcription, no
-        # duplicate chunks), and orphaned mirror files (source removed) are deleted.
+        # duplicate chunks). Mirror files whose source is gone are recorded as
+        # pending orphans for the user to review — never auto-deleted.
         dirty_groups: set[str] = set()
         src_by_path = {
             it["drive_path"].replace("\\", "/"): it
@@ -465,7 +466,7 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                     "SELECT drive_file_id, processing_status, processed_path, extracted_drive_file_id FROM file_processing"
                 ).fetchall()
             }
-            seeded = orphaned = 0
+            seeded = 0
             jobs = []                # (source_fid, mirror_drive_id, expected_abs)
             mid_by_fid: dict = {}
             for rel_path, m in list(mirror_index.items()):
@@ -474,20 +475,10 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 source_path = rel_path[:-4]
                 src = src_by_path.get(source_path)
                 if src is None:
-                    # Orphan: source removed but mirror copy remains → delete it
-                    try:
-                        delete_drive_file(service, m["id"])
-                    except Exception:
-                        pass
-                    local = _extracted_local_path(extracted_dir, source_path)
-                    if os.path.exists(local):
-                        try:
-                            os.remove(local)
-                        except Exception:
-                            pass
-                    mirror_index.pop(rel_path, None)
-                    dirty_groups.add(_safe_group_name(_group_of(source_path)))
-                    orphaned += 1
+                    # No source at THIS PATH — do NOT delete. A path discrepancy must
+                    # never destroy a valid extract (this is exactly what wrongly wiped
+                    # ~681 extracts). True orphans (source genuinely gone) are detected
+                    # by stable source_id below and queued for the user's review.
                     continue
                 if not _mirror_entry_valid(m, src):
                     continue  # source changed since extract → let it reprocess below
@@ -529,7 +520,32 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                     conn.commit()
             conn.commit()
             emit("stage_change", {"stage": "hydrate",
-                                  "message": f"Restored {seeded} extract(s); removed {orphaned} orphaned mirror file(s)"})
+                                  "message": f"Restored {seeded} extract(s)"})
+
+        # ── Detect orphan extracts (source genuinely gone) by STABLE source_id ──
+        # Never by path: a path discrepancy must not flag a live file. Nothing is
+        # deleted here — orphans are recorded for explicit user review/approval
+        # (POST /api/orphans/delete trashes them, recoverably). Only run when we have
+        # a real mirror listing, so a transient listing failure can't clear the list.
+        if extracted_folder_id and mirror_index:
+            orphan_rows = []
+            for rel_path, m in mirror_index.items():
+                if not rel_path.endswith(".txt"):
+                    continue
+                sid = (m.get("appProperties") or {}).get("source_id")
+                if sid and sid not in current_ids:
+                    orphan_rows.append((m["id"], os.path.basename(rel_path), rel_path, sid, _now()))
+            conn.execute("DELETE FROM pending_orphans")
+            if orphan_rows:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO pending_orphans "
+                    "(mirror_drive_id, name, drive_path, source_id, detected_at) VALUES (?,?,?,?,?)",
+                    orphan_rows,
+                )
+                emit("stage_change", {"stage": "hydrate",
+                      "message": f"Found {len(orphan_rows)} extract(s) with no matching source — "
+                                 f"review in the app before deletion (nothing deleted)"})
+            conn.commit()
 
         # ── Hydrate chunks from Drive — only when the local chunk set is incomplete ──
         # On a fresh/relocated machine this reuses existing Drive chunk IDs (no
@@ -590,31 +606,9 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
             old = existing_ids[old_id]
             old_path = old["drive_path"]
             dirty_groups.add(_safe_group_name(_group_of(old_path)))
-            proc = conn.execute(
-                "SELECT extracted_drive_file_id, processed_path FROM file_processing WHERE drive_file_id=?",
-                (old_id,),
-            ).fetchone()
-            # Delete the mirror .txt on Drive (best effort)
-            mirror_id = None
-            if proc and proc["extracted_drive_file_id"]:
-                mirror_id = proc["extracted_drive_file_id"]
-            else:
-                entry = mirror_index.get(_extract_rel_path(old_path))
-                mirror_id = entry["id"] if entry else None
-            if mirror_id:
-                try:
-                    delete_drive_file(service, mirror_id)
-                except Exception:
-                    pass
-            mirror_index.pop(_extract_rel_path(old_path), None)
-            # Delete the local extract
-            local_extract = data_abs(proc["processed_path"]) if proc else None
-            if local_extract and os.path.exists(local_extract):
-                try:
-                    os.remove(local_extract)
-                except Exception:
-                    pass
-            # Drop DB rows (file_processing first — FK references drive_files)
+            # Source is gone: drop its local DB rows and rebuild its group's chunk.
+            # Its mirror .txt is NOT deleted here — it's surfaced as a pending orphan
+            # (detected by source_id above) for the user to review and approve.
             conn.execute("DELETE FROM file_processing WHERE drive_file_id=?", (old_id,))
             conn.execute("DELETE FROM drive_files WHERE id=?", (old_id,))
             deleted_count += 1

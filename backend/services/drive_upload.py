@@ -119,3 +119,12 @@ def download_drive_text(service, file_id: str, dest_path: str):
 
 def delete_drive_file(service, file_id: str):
     service.files().delete(fileId=file_id).execute()
+
+
+def trash_drive_file(service, file_id: str):
+    """Soft-delete: move the file to Drive trash (recoverable for ~30 days) instead
+    of permanently deleting it. Used for orphan cleanup, which is a heuristic — so a
+    mistaken removal can always be undone from trash."""
+    service.files().update(
+        fileId=file_id, body={"trashed": True}, supportsAllDrives=True
+    ).execute()

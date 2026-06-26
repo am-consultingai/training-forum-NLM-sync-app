@@ -18,6 +18,10 @@ export const api = {
   getLiveProgress: () => request<LiveProgress>('/sync/live-progress'),
   getConfig: () => request<Record<string, unknown>>('/config'),
   getStatusSummary: () => request<any>('/status/summary'),
+  getOrphans: () =>
+    request<{ count: number; orphans: { mirror_drive_id: string; name: string; drive_path: string }[] }>('/orphans'),
+  deleteOrphans: () => request<{ trashed: number; failed: number }>('/orphans/delete', { method: 'POST' }),
+  dismissOrphans: () => request<{ dismissed: number }>('/orphans/dismiss', { method: 'POST' }),
   getAuthStatus: () => request<{ authorized: boolean; redirect_uri: string }>('/auth/status'),
   getFilesByCategory: (category: string, page: number) =>
     request<any>(`/status/files?category=${category}&page=${page}&per_page=50`),

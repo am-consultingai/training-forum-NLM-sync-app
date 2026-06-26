@@ -157,6 +157,16 @@ def init_db():
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_progress_run ON progress_events(run_id, id);
+
+        -- Mirror extracts whose source file no longer exists (detected by stable
+        -- source_id). Recorded for explicit user review; NEVER auto-deleted.
+        CREATE TABLE IF NOT EXISTS pending_orphans (
+            mirror_drive_id  TEXT PRIMARY KEY,
+            name             TEXT NOT NULL,
+            drive_path       TEXT,
+            source_id        TEXT,
+            detected_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     """)
 
     conn.commit()

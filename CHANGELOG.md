@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## 1.1.0 — 2026-06-25
 
+### Safety
+- **Mirror extracts are never auto-deleted anymore.** The cleanup that removed an
+  extract when it couldn't match it to a source *by path* could wrongly destroy
+  valid work when paths differed. Orphans are now detected by a **stable source ID**
+  (immune to path/rename differences), **never deleted automatically**, and surfaced
+  in the app — "Found N extracts without a matching source. Delete or keep?" Approved
+  deletions go to **Drive trash** (recoverable ~30 days), not a permanent delete.
+
 ### Fixed
 - **Sync no longer aborts entirely when a single file fails to download.** A long
   path, a timeout, or a network hiccup used to crash the whole run; the problem

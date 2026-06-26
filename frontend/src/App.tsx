@@ -4,6 +4,7 @@ import { SyncPanel } from './components/SyncPanel/SyncPanel';
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { StatusSummary } from './components/StatusSummary';
 import { AuthBanner } from './components/AuthBanner';
+import { OrphanReviewBanner } from './components/OrphanReviewBanner';
 import { LogsPanel } from './components/LogsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ActivityBar, type LiveProgress } from './components/ActivityBar';
@@ -242,6 +243,10 @@ export default function App() {
           {activeTab === 'sync' && (
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
               {authorized === false && <AuthBanner redirectUri={redirectUri} />}
+              <OrphanReviewBanner
+                count={summary?.pending_orphans ?? 0}
+                onResolved={() => api.getStatusSummary().then(setSummary).catch(() => {})}
+              />
               <SyncPanel onSyncStarted={handleSyncStarted} lastEvent={lastEvent} isRunning={isRunning} authorized={authorized === true} />
               {showSummary && <StatusSummary summary={summary} loading={summaryLoading} onDismiss={() => setShowSummary(false)} />}
               {!showSummary && summary && (summary.counts?.needs_download > 0 || summary.counts?.needs_processing > 0 || summary.counts?.failed > 0) && (

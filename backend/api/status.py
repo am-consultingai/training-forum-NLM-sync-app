@@ -74,6 +74,8 @@ def get_summary():
                 "error": r["processing_error"] or r["download_error"],
             })
 
+    pending_orphans = conn.execute("SELECT COUNT(*) FROM pending_orphans").fetchone()[0]
+
     return {
         "ever_synced": total_files > 0,
         "downloads_dir_configured": is_configured(),
@@ -82,6 +84,7 @@ def get_summary():
         "needs_update": needs_update[:50],
         "needs_update_total": len(needs_update),
         "counts": counts,
+        "pending_orphans": pending_orphans,
     }
 
 
