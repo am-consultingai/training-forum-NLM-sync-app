@@ -3,6 +3,15 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.5 — 2026-06-29
+
+### Fixed
+- **Stale "Operation timed out after 120s" no longer lingers on files that downloaded
+  fine.** A download that timed out once then succeeded on retry kept the old error
+  text (`download_status` became `done` but `download_error` wasn't cleared), so the
+  file showed a warning even though it was fully downloaded. The error is now cleared
+  on a successful download.
+
 ## 1.1.4 — 2026-06-29
 
 ### Fixed
