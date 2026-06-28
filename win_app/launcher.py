@@ -95,7 +95,9 @@ def _make_icon_image():
     for cand in (os.path.join(base, "app.ico"),
                  os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")):
         try:
-            return Image.open(cand).convert("RGBA")
+            # Normalize to a clean 64×64 square — some .ico frames render blank/odd in
+            # the tray at their native size.
+            return Image.open(cand).convert("RGBA").resize((64, 64))
         except Exception:
             pass
 
@@ -143,17 +145,27 @@ def main():
         server.should_exit = True
         icon.stop()
 
-    icon = pystray.Icon(
-        "share_sync",
-        _make_icon_image(),
-        "sHaRe sync",
-        menu=pystray.Menu(
-            Item("Open", on_open, default=True),
-            Item("Run sync now", on_sync),
-            Item("Quit", on_quit),
-        ),
-    )
-    icon.run()  # blocks until on_quit -> icon.stop()
+    try:
+        icon = pystray.Icon(
+            "share_sync",
+            _make_icon_image(),
+            "sHaRe sync",
+            menu=pystray.Menu(
+                Item("Open", on_open, default=True),
+                Item("Run sync now", on_sync),
+                Item("Quit", on_quit),
+            ),
+        )
+        icon.run()  # blocks until on_quit -> icon.stop()
+    except Exception as e:  # noqa: BLE001
+        # A tray failure must not take the whole app down — keep the server alive so
+        # it stays usable from the browser. The error lands in launcher.log.
+        print(f"System-tray icon unavailable ({e}); running without it — "
+              f"use the browser at {URL}.", file=sys.stderr)
+        try:
+            server_thread.join()
+        except KeyboardInterrupt:
+            server.should_exit = True
 
 
 if __name__ == "__main__":

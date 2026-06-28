@@ -12,7 +12,7 @@
 ; entry). The internal identifiers below (AppExe, install dir, data dir, output
 ; filename) use the filesystem-safe form "sHaRe-sync".
 #define AppName "sHaRe sync"
-#define AppVersion "1.1.2"
+#define AppVersion "1.1.3"
 #define AppExe "sHaRe-sync.exe"
 
 [Setup]

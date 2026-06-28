@@ -3,6 +3,16 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.3 — 2026-06-28
+
+### Changed
+- **System-tray launcher hardened.** A failure to create the tray icon no longer
+  takes the whole app down — it's logged and the server keeps running (still usable
+  from the browser). The tray image is normalized to a clean 64×64 to avoid a
+  blank/odd render. Note: Windows still places new tray icons in the **hidden-icons
+  overflow** by default (expand the `^` near the clock, or pin via Taskbar settings)
+  — an app can't self-promote out of it.
+
 ## 1.1.2 — 2026-06-28
 
 ### Fixed
