@@ -3,6 +3,14 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.6 — 2026-06-29
+
+### Changed
+- **While a sync is running, the Status Summary now opens on the Total / pipeline
+  view by default**, so the live flow of the process — Connect → Discover → Download
+  → Process → Mirror → Chunk → Upload, with the active stage highlighted — is
+  front-and-center. You can still click into any other stat mid-run.
+
 ## 1.1.5 — 2026-06-29
 
 ### Fixed

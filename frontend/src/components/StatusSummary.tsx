@@ -20,6 +20,7 @@ interface Props {
   summary: Summary | null;
   loading: boolean;
   onDismiss: () => void;
+  isRunning?: boolean;
 }
 
 type Category = 'total' | 'synced' | 'failed' | 'not_downloaded' | 'needs_processing' | 'skipped';
@@ -39,8 +40,15 @@ const STATUS_COLOR: Record<string, string> = {
   skipped: '#94a3b8',
 };
 
-export function StatusSummary({ summary, loading, onDismiss }: Props) {
+export function StatusSummary({ summary, loading, onDismiss, isRunning }: Props) {
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
+
+  // While a sync is running, default to the Total view — the live pipeline flow
+  // (Connect → Discover → Download → Process → Mirror → Chunk → Upload). Fires only
+  // when the run starts, so the user can still click into other stats mid-run.
+  useEffect(() => {
+    if (isRunning) setActiveCategory('total');
+  }, [isRunning]);
 
   if (loading) return (
     <div style={panelStyle}>

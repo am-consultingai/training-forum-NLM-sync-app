@@ -248,7 +248,7 @@ export default function App() {
                 onResolved={() => api.getStatusSummary().then(setSummary).catch(() => {})}
               />
               <SyncPanel onSyncStarted={handleSyncStarted} lastEvent={lastEvent} isRunning={isRunning} authorized={authorized === true} />
-              {showSummary && <StatusSummary summary={summary} loading={summaryLoading} onDismiss={() => setShowSummary(false)} />}
+              {showSummary && <StatusSummary summary={summary} loading={summaryLoading} onDismiss={() => setShowSummary(false)} isRunning={isRunning} />}
               {!showSummary && summary && (summary.counts?.needs_download > 0 || summary.counts?.needs_processing > 0 || summary.counts?.failed > 0) && (
                 <button onClick={() => setShowSummary(true)} style={{ margin: '0 16px', background: 'transparent', border: '1px solid #334155', borderRadius: 6, color: '#fbbf24', fontSize: '0.8rem', padding: '6px 12px', cursor: 'pointer', textAlign: 'left', width: 'fit-content' }}>
                   ⚠ {summary.needs_update_total} file{summary.needs_update_total !== 1 ? 's' : ''} need attention — show details
