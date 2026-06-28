@@ -15,9 +15,9 @@ def _register_app_home_cuda() -> bool:
     """Make CUDA libs that first-run setup downloaded into the app home loadable.
 
     The nvidia-*-cu12 wheels unzip to <cuda_dir>/nvidia/<pkg>/{bin,lib}. On Windows
-    the DLLs live in bin/ and must be registered with os.add_dll_directory(); on
-    Linux the .so files live in lib/ and go on LD_LIBRARY_PATH. Returns True if a
-    cuBLAS library was found there."""
+    the DLLs live in bin/ and are registered with both os.add_dll_directory() AND
+    prepended to PATH; on Linux the .so files live in lib/ and go on LD_LIBRARY_PATH.
+    Returns True if a cuBLAS library was found there."""
     nvidia_base = os.path.join(paths.cuda_dir(), "nvidia")
     if not os.path.isdir(nvidia_base):
         return False
@@ -39,6 +39,12 @@ def _register_app_home_cuda() -> bool:
                 os.add_dll_directory(d)
             except (OSError, AttributeError):
                 pass
+            # ctranslate2 lazily loads cuBLAS/cuDNN at the FIRST inference via a plain
+            # LoadLibrary, which does NOT search os.add_dll_directory() dirs — only the
+            # standard order, which includes PATH. Without this the model loads on CUDA
+            # but the first GEMM fails ("cublas64_12.dll … cannot be loaded"). Prepend
+            # the bin dirs to PATH so the lazy load resolves them.
+            os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
     else:
         os.environ["LD_LIBRARY_PATH"] = ":".join(lib_dirs) + ":" + os.environ.get("LD_LIBRARY_PATH", "")
     return True

@@ -36,6 +36,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **The packaged app ignores a stray `.env`** in its launch directory, which could
   otherwise silently point it at the wrong model or database.
 - Use the OS temp directory for intermediate audio instead of a hardcoded `/tmp`.
+- **GPU transcription now actually loads cuBLAS/cuDNN.** The bundled CUDA libs were
+  registered only via `os.add_dll_directory()`, which ctranslate2's lazy loader
+  doesn't search — so the model loaded on CUDA but the first inference failed with
+  `cublas64_12.dll … cannot be loaded`. The CUDA `bin` dirs are now also prepended to
+  `PATH`, which the standard loader does search.
 
 ### Added
 - **Automatic GPU → CPU fallback for transcription.** The GPU is validated at load
