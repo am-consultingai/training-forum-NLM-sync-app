@@ -186,18 +186,21 @@ def _long_path(path: str) -> str:
 
 
 def download_file(service, file_id: str, dest_path: str, timeout: int = 120):
+    # `timeout` is a STALL guard — the most a single chunk may take with no progress,
+    # NOT a cap on the whole download. Large files take as long as they legitimately
+    # need; only a transfer that makes no progress for `timeout`s aborts. (A flat
+    # total cap wrongly failed big videos with "Operation timed out after 120s".)
     os.makedirs(os.path.dirname(_long_path(dest_path)), exist_ok=True)
-
-    def _do():
+    try:
         request = service.files().get_media(fileId=file_id)
         with open(_long_path(dest_path), "wb") as f:
-            downloader = MediaIoBaseDownload(f, request)
+            # Smaller chunks → each next_chunk() finishes quickly even on a slow,
+            # shared link, so the per-chunk stall timeout never trips on a file that
+            # is still downloading.
+            downloader = MediaIoBaseDownload(f, request, chunksize=10 * 1024 * 1024)
             done = False
             while not done:
-                _, done = downloader.next_chunk()
-
-    try:
-        _run_with_timeout(_do, timeout)
+                _, done = _run_with_timeout(downloader.next_chunk, timeout)
     except TimeoutError:
         # Remove partial file so a retry starts clean
         if os.path.exists(_long_path(dest_path)):

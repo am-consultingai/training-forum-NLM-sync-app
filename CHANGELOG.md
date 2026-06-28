@@ -3,6 +3,16 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.4 — 2026-06-29
+
+### Fixed
+- **Large files (videos) no longer fail to download with "Operation timed out after
+  120s".** The download had a flat 120-second cap on the *entire* transfer, which big
+  files on a shared connection can't meet — they timed out, retried 3×, and failed
+  (leaving meeting-recording videos un-transcribed). The timeout is now a **stall
+  guard**: the download runs in 10 MB chunks and only aborts if **no data arrives**
+  for the timeout window, so a file takes as long as it legitimately needs.
+
 ## 1.1.3 — 2026-06-28
 
 ### Changed
