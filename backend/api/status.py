@@ -48,6 +48,7 @@ def get_summary():
            LEFT JOIN file_processing fp ON fp.drive_file_id = df.id
            WHERE df.is_folder = 0"""
     ).fetchall()
+    pending_orphans = conn.execute("SELECT COUNT(*) FROM pending_orphans").fetchone()[0]
     conn.close()
 
     counts = {"total": 0, "synced": 0, "needs_processing": 0,
@@ -73,8 +74,6 @@ def get_summary():
                 "reason": cat,
                 "error": r["processing_error"] or r["download_error"],
             })
-
-    pending_orphans = conn.execute("SELECT COUNT(*) FROM pending_orphans").fetchone()[0]
 
     return {
         "ever_synced": total_files > 0,

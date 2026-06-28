@@ -3,6 +3,16 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.2 — 2026-06-28
+
+### Fixed
+- **`/status/summary` no longer errors every poll.** The new `pending_orphans`
+  count was queried after the DB connection was already closed, raising
+  `sqlite3.ProgrammingError: Cannot operate on a closed database` on each status
+  poll (cosmetic — the sync was unaffected, but the status numbers/orphan banner
+  stopped updating and the log filled with the trace). The query now runs before
+  the connection is closed.
+
 ## 1.1.1 — 2026-06-28
 
 ### Fixed
