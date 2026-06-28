@@ -3,6 +3,16 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.1 — 2026-06-28
+
+### Fixed
+- **GPU transcription now actually loads cuBLAS/cuDNN.** The bundled CUDA libs were
+  registered only via `os.add_dll_directory()`, which ctranslate2's lazy (first-
+  inference) loader doesn't search — so the model loaded on CUDA but the first GEMM
+  failed with `cublas64_12.dll … cannot be loaded`. The CUDA `bin` dirs are now also
+  prepended to `PATH`, which the standard loader does search. The GPU→CPU fallback
+  from 1.1.0 remains as the safety net.
+
 ## 1.1.0 — 2026-06-25
 
 ### Safety
@@ -36,11 +46,6 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **The packaged app ignores a stray `.env`** in its launch directory, which could
   otherwise silently point it at the wrong model or database.
 - Use the OS temp directory for intermediate audio instead of a hardcoded `/tmp`.
-- **GPU transcription now actually loads cuBLAS/cuDNN.** The bundled CUDA libs were
-  registered only via `os.add_dll_directory()`, which ctranslate2's lazy loader
-  doesn't search — so the model loaded on CUDA but the first inference failed with
-  `cublas64_12.dll … cannot be loaded`. The CUDA `bin` dirs are now also prepended to
-  `PATH`, which the standard loader does search.
 
 ### Added
 - **Automatic GPU → CPU fallback for transcription.** The GPU is validated at load
