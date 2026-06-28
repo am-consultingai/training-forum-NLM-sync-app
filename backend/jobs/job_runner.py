@@ -878,7 +878,7 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                         emit("file_status", {"file_id": it["id"], "name": it["name"],
                                              "stage": "download", "status": "failed", "error": err})
                     else:
-                        conn.execute("UPDATE file_processing SET download_status='done', downloaded_path=?, downloaded_at=?, updated_at=? WHERE drive_file_id=?",
+                        conn.execute("UPDATE file_processing SET download_status='done', download_error=NULL, downloaded_path=?, downloaded_at=?, updated_at=? WHERE drive_file_id=?",
                                      (data_rel(dest), _now(), _now(), it["id"]))
                         conn.commit()
                         proc_queue.put({"id": it["id"], "name": it["name"], "path": dest,
