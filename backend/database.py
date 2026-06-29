@@ -167,6 +167,20 @@ def init_db():
             source_id        TEXT,
             detected_at      TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        -- Output chunk files CREATED or DELETED on Drive during a sync. Each is a
+        -- NotebookLM source the user must add/remove, so they're surfaced for
+        -- explicit acknowledgement (severity on par with a deletion). Kept until
+        -- the user dismisses them.
+        CREATE TABLE IF NOT EXISTS chunk_notices (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id           INTEGER,
+            action           TEXT NOT NULL,          -- 'created' | 'deleted'
+            chunk_filename   TEXT NOT NULL,
+            drive_file_id    TEXT,
+            created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_chunk_notices_file ON chunk_notices(chunk_filename);
     """)
 
     conn.commit()

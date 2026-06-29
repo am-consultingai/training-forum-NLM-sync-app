@@ -18,7 +18,7 @@ def _extract(tmp_path):
 
 def test_relevance_is_stamped_on_upload(tmp_path):
     svc = FakeDrive()
-    fid = upload_text_file(
+    fid, _ = upload_text_file(
         svc, _extract(tmp_path), "MIRROR", name="e.txt",
         app_properties={"source_id": "S1", "source_md5": "abc", "relevance": "not_relevant"},
     )
@@ -30,7 +30,7 @@ def test_relevance_is_stamped_on_upload(tmp_path):
 
 def test_relevance_toggle_merges_without_losing_provenance(tmp_path):
     svc = FakeDrive()
-    fid = upload_text_file(
+    fid, _ = upload_text_file(
         svc, _extract(tmp_path), "MIRROR", name="e.txt",
         app_properties={"source_id": "S1", "source_md5": "abc", "relevance": "not_relevant"},
     )

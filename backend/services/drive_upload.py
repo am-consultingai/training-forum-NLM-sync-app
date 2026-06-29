@@ -78,8 +78,10 @@ def upload_text_file(
     existing_drive_id: str | None = None,
     app_properties: dict | None = None,
     max_retries: int = 3,
-) -> str:
-    """Upload or update a text file in a Drive folder. Returns the Drive file ID.
+) -> tuple[str, bool]:
+    """Upload or update a text file in a Drive folder. Returns (drive_file_id, created)
+    where `created` is True only when a brand-new Drive file was made (vs an in-place
+    update of an existing one). Callers use `created` to report a new NotebookLM source.
 
     - `name` defaults to the local basename (used only when creating).
     - `app_properties` are custom key/value metadata stored on the Drive file
@@ -106,6 +108,7 @@ def upload_text_file(
                             fields="id", supportsAllDrives=True)
                     .execute()
                 )
+                return file["id"], False
             else:
                 metadata = {
                     "name": target_name,
@@ -119,7 +122,7 @@ def upload_text_file(
                             supportsAllDrives=True)
                     .execute()
                 )
-            return file["id"]
+                return file["id"], True
         except Exception as e:
             if attempt == max_retries - 1:
                 raise
@@ -134,8 +137,9 @@ def upload_chunk(
     output_folder_id: str,
     existing_drive_id: str | None,
     max_retries: int = 3,
-) -> str:
-    """Upload or update a chunk file in the output Drive folder. Returns the Drive file ID."""
+) -> tuple[str, bool]:
+    """Upload or update a chunk file in the output Drive folder.
+    Returns (drive_file_id, created)."""
     return upload_text_file(
         service, chunk_path, output_folder_id,
         existing_drive_id=existing_drive_id, max_retries=max_retries,

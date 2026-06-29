@@ -3,6 +3,31 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.2.0 — 2026-06-29
+
+### Added
+- **The app now actively reports NotebookLM-relevant changes to the output set.**
+  Whenever a sync **creates** a new chunk file (a new Drive source you must *add* to
+  NotebookLM) or **removes** one (a source you must *delete*), it's surfaced in a
+  prominent, persistent banner — "Add N new sources / Remove N sources" with the
+  exact filenames — and dismissed only when you acknowledge it. Previously a new
+  source was created silently, so NotebookLM could be missing information with no
+  signal (the same severity as a deletion). Backed by a new `/api/notices` endpoint
+  and a `chunk_notices` record; the change list is also included in the run-complete
+  event.
+
+### Fixed
+- **Chunks deleted from the Drive output folder are now regenerated on the next
+  sync.** If chunk files are removed on Drive (externally, or to force a clean
+  rebuild), an otherwise-idle sync detects they're missing, rebuilds the affected
+  groups, and re-uploads them — instead of reporting "up to date" and leaving you
+  with no chunks. New chunks created this way are reported via the banner above.
+
+### Changed
+- Chunk uploads now report whether each file was newly **created** vs **updated in
+  place**, which drives the new-source notification. (Updates still reuse the same
+  Drive file ID, so NotebookLM keeps the existing source — see 1.1.8.)
+
 ## 1.1.9 — 2026-06-29
 
 ### Fixed

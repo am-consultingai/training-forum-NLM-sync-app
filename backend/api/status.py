@@ -49,6 +49,7 @@ def get_summary():
            WHERE df.is_folder = 0"""
     ).fetchall()
     pending_orphans = conn.execute("SELECT COUNT(*) FROM pending_orphans").fetchone()[0]
+    chunk_notices = conn.execute("SELECT COUNT(*) FROM chunk_notices").fetchone()[0]
     conn.close()
 
     counts = {"total": 0, "synced": 0, "needs_processing": 0,
@@ -84,6 +85,7 @@ def get_summary():
         "needs_update_total": len(needs_update),
         "counts": counts,
         "pending_orphans": pending_orphans,
+        "chunk_notices": chunk_notices,
     }
 
 

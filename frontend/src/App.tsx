@@ -5,6 +5,7 @@ import { FirstRunWizard } from './components/FirstRunWizard';
 import { StatusSummary } from './components/StatusSummary';
 import { AuthBanner } from './components/AuthBanner';
 import { OrphanReviewBanner } from './components/OrphanReviewBanner';
+import { NotebookLMNoticeBanner } from './components/NotebookLMNoticeBanner';
 import { LogsPanel } from './components/LogsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ActivityBar, type LiveProgress } from './components/ActivityBar';
@@ -245,6 +246,10 @@ export default function App() {
               {authorized === false && <AuthBanner redirectUri={redirectUri} />}
               <OrphanReviewBanner
                 count={summary?.pending_orphans ?? 0}
+                onResolved={() => api.getStatusSummary().then(setSummary).catch(() => {})}
+              />
+              <NotebookLMNoticeBanner
+                count={summary?.chunk_notices ?? 0}
                 onResolved={() => api.getStatusSummary().then(setSummary).catch(() => {})}
               />
               <SyncPanel onSyncStarted={handleSyncStarted} lastEvent={lastEvent} isRunning={isRunning} authorized={authorized === true} />

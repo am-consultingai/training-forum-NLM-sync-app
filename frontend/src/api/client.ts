@@ -22,6 +22,13 @@ export const api = {
     request<{ count: number; orphans: { mirror_drive_id: string; name: string; drive_path: string }[] }>('/orphans'),
   deleteOrphans: () => request<{ trashed: number; failed: number }>('/orphans/delete', { method: 'POST' }),
   dismissOrphans: () => request<{ dismissed: number }>('/orphans/dismiss', { method: 'POST' }),
+  getNotices: () =>
+    request<{
+      count: number;
+      created: { chunk_filename: string; drive_file_id: string }[];
+      deleted: { chunk_filename: string }[];
+    }>('/notices'),
+  dismissNotices: () => request<{ dismissed: number }>('/notices/dismiss', { method: 'POST' }),
   getAuthStatus: () => request<{ authorized: boolean; redirect_uri: string }>('/auth/status'),
   getFilesByCategory: (category: string, page: number) =>
     request<any>(`/status/files?category=${category}&page=${page}&per_page=50`),

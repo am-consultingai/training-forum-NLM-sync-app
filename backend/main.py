@@ -15,6 +15,7 @@ from backend.api.progress import router as progress_router
 from backend.api.config import router as config_router
 from backend.api.status import router as status_router
 from backend.api.orphans import router as orphans_router
+from backend.api.notices import router as notices_router
 from backend.api.auth import router as auth_router
 from win_app.app_core.setup_api import router as setup_router
 
@@ -34,6 +35,7 @@ app.include_router(progress_router)
 app.include_router(config_router)
 app.include_router(status_router)
 app.include_router(orphans_router)
+app.include_router(notices_router)
 app.include_router(auth_router)
 app.include_router(setup_router)
 

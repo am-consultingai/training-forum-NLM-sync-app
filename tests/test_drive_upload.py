@@ -20,27 +20,31 @@ def test_upload_is_idempotent_by_name(tmp_path):
     file, not create a duplicate with the same name."""
     svc = FakeDrive()
     f = _tmpfile(tmp_path)
-    id1 = upload_text_file(svc, f, "PARENT", name="Majors_Part5.txt")
-    id2 = upload_text_file(svc, f, "PARENT", name="Majors_Part5.txt")  # no id known
+    id1, created1 = upload_text_file(svc, f, "PARENT", name="Majors_Part5.txt")
+    id2, created2 = upload_text_file(svc, f, "PARENT", name="Majors_Part5.txt")  # no id known
     assert id1 == id2
+    assert created1 is True       # first call made a new Drive file
+    assert created2 is False      # second call updated it in place — no new source
     assert svc.live_named("Majors_Part5.txt") == 1
 
 
 def test_upload_respects_explicit_existing_id(tmp_path):
     svc = FakeDrive()
     f = _tmpfile(tmp_path)
-    id1 = upload_text_file(svc, f, "PARENT", name="a.txt")
-    id2 = upload_text_file(svc, f, "PARENT", name="a.txt", existing_drive_id=id1)
+    id1, _ = upload_text_file(svc, f, "PARENT", name="a.txt")
+    id2, created2 = upload_text_file(svc, f, "PARENT", name="a.txt", existing_drive_id=id1)
     assert id2 == id1
+    assert created2 is False
     assert len(svc.store) == 1
 
 
 def test_upload_creates_distinct_files_for_distinct_names(tmp_path):
     svc = FakeDrive()
     f = _tmpfile(tmp_path)
-    a = upload_text_file(svc, f, "PARENT", name="Majors_Part1.txt")
-    b = upload_text_file(svc, f, "PARENT", name="Majors_Part2.txt")
+    a, ca = upload_text_file(svc, f, "PARENT", name="Majors_Part1.txt")
+    b, cb = upload_text_file(svc, f, "PARENT", name="Majors_Part2.txt")
     assert a != b
+    assert ca is True and cb is True
     assert len(svc.store) == 2
 
 

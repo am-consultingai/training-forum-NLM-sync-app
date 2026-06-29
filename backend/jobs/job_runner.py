@@ -412,8 +412,48 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
         pending_chunking = _count("SELECT COUNT(*) FROM file_processing WHERE processing_status='done' AND chunking_status='pending'")
         pending_upload = _count("SELECT COUNT(*) FROM chunks WHERE upload_status='pending'")
 
-        if (not changed_source_ids and not deleted_ids and pending_proc == 0
-                and unsynced_extract == 0 and pending_chunking == 0 and pending_upload == 0):
+        nothing_pending = (not changed_source_ids and not deleted_ids and pending_proc == 0
+                and unsynced_extract == 0 and pending_chunking == 0 and pending_upload == 0)
+        if nothing_pending:
+            # Before declaring "up to date", confirm the chunks we believe live on
+            # Drive still exist. A chunk trashed/deleted on Drive (externally, or to
+            # force a clean rebuild) must be regenerated here — otherwise NotebookLM
+            # silently loses a source and the sync would never notice. Only runs on
+            # an otherwise-idle sync, so it's just one small output-folder listing.
+            out_id = get_effective_output_folder_id()
+            tracked = conn.execute(
+                "SELECT chunk_filename, output_drive_file_id FROM chunks "
+                "WHERE output_drive_file_id IS NOT NULL").fetchall()
+            if out_id and tracked:
+                try:
+                    present = {f["id"] for f in list_all_files(service, out_id)
+                               if f["mimeType"] != "application/vnd.google-apps.folder"}
+                    missing = [r for r in tracked if r["output_drive_file_id"] not in present]
+                    if missing:
+                        gone_groups = set()
+                        for r in missing:
+                            sg = _chunk_safe_group(r["chunk_filename"])
+                            if sg:
+                                gone_groups.add(sg)
+                            conn.execute("DELETE FROM chunks WHERE chunk_filename=?",
+                                         (r["chunk_filename"],))
+                        for fr in conn.execute(
+                            "SELECT fp.drive_file_id, df.drive_path FROM file_processing fp "
+                            "JOIN drive_files df ON df.id=fp.drive_file_id "
+                            "WHERE fp.processing_status='done'").fetchall():
+                            if _safe_group_name(_group_of(fr["drive_path"])) in gone_groups:
+                                conn.execute(
+                                    "UPDATE file_processing SET chunking_status='pending' "
+                                    "WHERE drive_file_id=?", (fr["drive_file_id"],))
+                        conn.commit()
+                        emit("stage_change", {"stage": "chunk",
+                              "message": f"{len(missing)} chunk(s) missing from Drive — rebuilding"})
+                        nothing_pending = False
+                except Exception as e:
+                    emit("stage_change", {"stage": "chunk",
+                          "message": f"Could not verify Drive chunks: {e}"})
+
+        if nothing_pending:
             # #4 Early-exit: nothing new/changed/deleted and no outstanding work.
             downloaded = _count("SELECT COUNT(*) FROM file_processing WHERE download_status='done'")
             _update_run(conn, run_id, files_downloaded=downloaded, files_processed=0,
@@ -1021,7 +1061,7 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 }
                 try:
                     parent_id = ensure_drive_folder_path(service, extracted_folder_id, rel_dir, folder_cache)
-                    new_id = upload_text_file(
+                    new_id, _created = upload_text_file(
                         service, local_path, parent_id, name=name,
                         existing_drive_id=existing_id, app_properties=app_props,
                         max_retries=settings.max_upload_retries,
@@ -1143,8 +1183,8 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
         # Scoping to rebuilt/deleted groups protects chunks of groups that simply
         # had no processed files this run (e.g. a transient failure) from deletion.
         gc_scope = built_safe_groups | chunk_dirty
+        deleted_chunks: list[str] = []   # names removed from Drive → remove from NotebookLM
         if gc_scope:
-            removed = 0
             for chunk in conn.execute(
                 "SELECT id, chunk_filename, chunk_path, output_drive_file_id FROM chunks"
             ).fetchall():
@@ -1162,11 +1202,11 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                         except Exception:
                             pass
                     conn.execute("DELETE FROM chunks WHERE id=?", (chunk["id"],))
-                    removed += 1
-            if removed:
+                    deleted_chunks.append(chunk["chunk_filename"])
+            if deleted_chunks:
                 conn.commit()
                 emit("stage_change", {"stage": "chunk",
-                                      "message": f"Removed {removed} obsolete chunk(s)"})
+                                      "message": f"Removed {len(deleted_chunks)} obsolete chunk(s)"})
 
         # ── Phase 5: Upload to output Drive ──
         emit("stage_change", {"stage": "upload", "message": "Uploading chunks to output Drive folder"})
@@ -1176,9 +1216,10 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
         ).fetchall()
 
         uploaded_count = 0
+        created_chunks: list[str] = []   # NEW Drive files → new NotebookLM sources to add
         for chunk in pending_chunks:
             try:
-                drive_file_id = upload_chunk(
+                drive_file_id, created = upload_chunk(
                     service,
                     data_abs(chunk["chunk_path"]),
                     get_effective_output_folder_id(),
@@ -1191,8 +1232,17 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 )
                 conn.commit()
                 uploaded_count += 1
+                if created:
+                    created_chunks.append(chunk["chunk_filename"])
+                    conn.execute(
+                        "INSERT INTO chunk_notices (run_id, action, chunk_filename, drive_file_id) "
+                        "VALUES (?, 'created', ?, ?)",
+                        (run_id, chunk["chunk_filename"], drive_file_id),
+                    )
+                    conn.commit()
                 emit("stage_change", {"stage": "upload", "chunk": chunk["chunk_filename"],
-                                       "status": "done", "chunks_uploaded": uploaded_count})
+                                       "status": "created" if created else "done",
+                                       "chunks_uploaded": uploaded_count})
             except Exception as e:
                 conn.execute(
                     "UPDATE chunks SET upload_status='failed', upload_error=?, updated_at=? WHERE id=?",
@@ -1202,12 +1252,32 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 emit("stage_change", {"stage": "upload", "chunk": chunk["chunk_filename"],
                                        "status": "failed", "error": str(e)})
 
+        # Persist deletions as notices too — a removed chunk is a NotebookLM source
+        # the user must delete (same severity as a new source they must add).
+        for fname in deleted_chunks:
+            conn.execute(
+                "INSERT INTO chunk_notices (run_id, action, chunk_filename) VALUES (?, 'deleted', ?)",
+                (run_id, fname),
+            )
+        if deleted_chunks:
+            conn.commit()
+
+        # Surface the NotebookLM-relevant changes prominently (not just a transient
+        # per-chunk log line): a new source must be ADDED and a removed one DELETED
+        # in NotebookLM, or its knowledge base drifts from Drive.
+        if created_chunks or deleted_chunks:
+            emit("stage_change", {"stage": "upload", "message":
+                  f"NotebookLM action needed — {len(created_chunks)} new source(s) to add"
+                  + (f", {len(deleted_chunks)} to remove" if deleted_chunks else "")})
+
         _update_run(conn, run_id, chunks_uploaded=uploaded_count,
                     status="done", finished_at=_now())
         emit("run_complete", {
             "status": "done",
             "files_processed": process_results["processed"],
             "chunks_uploaded": uploaded_count,
+            "chunks_created": created_chunks,
+            "chunks_deleted": deleted_chunks,
         })
 
     except Exception as e:
