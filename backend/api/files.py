@@ -135,6 +135,29 @@ def set_file_flag(file_id: str, body: FlagRequest):
         "UPDATE file_processing SET chunking_status='pending' WHERE drive_file_id=?",
         (file_id,),
     )
+    extract_row = conn.execute(
+        "SELECT extracted_drive_file_id FROM file_processing WHERE drive_file_id=?",
+        (file_id,),
+    ).fetchone()
     conn.commit()
     conn.close()
-    return {"id": file_id, "relevance": body.relevance}
+
+    # Push the flag onto the extract's Drive appProperties so it travels to every
+    # machine (the local DB alone is per-machine — another machine would default to
+    # 'relevant' and re-add the file to a chunk). Best-effort: the flag is already
+    # persisted locally and is also re-stamped on the next sync's extract upload, so
+    # a transient Drive/auth failure here is non-fatal.
+    extracted_id = extract_row["extracted_drive_file_id"] if extract_row else None
+    drive_synced = False
+    if extracted_id:
+        try:
+            from backend.config import settings
+            from backend.services.drive_sync import get_drive_service
+            from backend.services.drive_upload import update_app_properties
+            service = get_drive_service(settings.google_credentials_path, settings.google_token_path)
+            update_app_properties(service, extracted_id, {"relevance": body.relevance})
+            drive_synced = True
+        except Exception:
+            pass
+
+    return {"id": file_id, "relevance": body.relevance, "drive_synced": drive_synced}

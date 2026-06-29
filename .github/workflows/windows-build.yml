@@ -33,6 +33,15 @@ jobs:
         with:
           node-version: "20"
 
+      # Regression gate: run the unit tests BEFORE building so a code change that
+      # reintroduces a known bug (non-deterministic chunking, duplicate uploads,
+      # relevance not traveling cross-machine) fails the build instead of shipping.
+      - name: Run regression tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tests/requirements.txt
+          python -m pytest tests -q
+
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 

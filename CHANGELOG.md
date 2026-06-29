@@ -3,6 +3,24 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.9 — 2026-06-29
+
+### Fixed
+- **"Ignore" (relevance) now travels across machines.** Marking a file as ignored
+  was stored only in the local database, so a sync on a *different* machine didn't
+  know about it — it treated the file as relevant and re-added it to a chunk,
+  silently undoing the exclusion. The flag is now stamped on the extract's Drive
+  `appProperties`: it's pushed immediately when you toggle it, re-stamped on every
+  extract upload, and read back on every machine during hydration (the Drive mirror
+  is the source of truth). A file ignored on any machine stays ignored everywhere.
+
+### Internal
+- **Regression test suite + CI gate.** Added unit tests for the edge cases behind
+  the recent fixes — deterministic chunk packing (order-independent), idempotent
+  upload-by-name (no duplicate chunks), the duplicate-cleanup picker, and the
+  relevance round-trip through Drive `appProperties`. The Windows build now runs
+  these tests first and fails if any regress.
+
 ## 1.1.8 — 2026-06-29
 
 ### Fixed

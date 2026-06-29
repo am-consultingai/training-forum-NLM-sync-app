@@ -1,0 +1,5 @@
+# Minimal deps to run the regression suite in CI. The tests only touch the pure
+# chunker logic and the Drive upload helpers (no heavy ML deps needed), so this
+# stays fast.
+pytest>=8
+google-api-python-client>=2

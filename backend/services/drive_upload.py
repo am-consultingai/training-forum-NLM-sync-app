@@ -28,6 +28,48 @@ def _find_file_by_name(service, parent_folder_id: str, name: str) -> str | None:
     return files[0]["id"] if files else None
 
 
+VALID_RELEVANCE = ("relevant", "not_relevant")
+
+
+def relevance_from_props(app_properties: dict | None) -> str | None:
+    """Read the cross-machine relevance flag stamped on a mirror extract's
+    appProperties. Returns 'relevant'/'not_relevant', or None when the extract
+    carries no explicit stamp (legacy extract — leave the local value untouched
+    rather than forcing it back to the default)."""
+    rel = (app_properties or {}).get("relevance")
+    return rel if rel in VALID_RELEVANCE else None
+
+
+def dedupe_by_name(files: list[dict]) -> tuple[dict[str, str], list[tuple[str, str]]]:
+    """Group Drive files by name and pick one survivor per name (the most recently
+    modified). Pure — does NO Drive calls — so it's unit-testable.
+
+    files: dicts with at least 'id', 'name', and optionally 'modifiedTime'.
+    Returns (id_by_name, to_trash) where id_by_name maps name -> survivor id and
+    to_trash is a list of (name, file_id) duplicates to remove."""
+    by_name: dict[str, list[dict]] = {}
+    for f in files:
+        by_name.setdefault(f["name"], []).append(f)
+    id_by_name: dict[str, str] = {}
+    to_trash: list[tuple[str, str]] = []
+    for name, group in by_name.items():
+        group = sorted(group, key=lambda d: d.get("modifiedTime") or "", reverse=True)
+        id_by_name[name] = group[0]["id"]
+        for extra in group[1:]:
+            to_trash.append((name, extra["id"]))
+    return id_by_name, to_trash
+
+
+def update_app_properties(service, file_id: str, app_properties: dict) -> None:
+    """Metadata-only update of a Drive file's appProperties (no media re-upload).
+    Used to push a relevance toggle to the mirror extract so the flag travels to
+    every machine, even when the extract's content hasn't changed."""
+    service.files().update(
+        fileId=file_id, body={"appProperties": app_properties},
+        fields="id", supportsAllDrives=True,
+    ).execute()
+
+
 def upload_text_file(
     service,
     local_path: str,

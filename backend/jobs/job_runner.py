@@ -34,6 +34,7 @@ from backend.services.drive_sync import (
 from backend.services.drive_upload import (
     upload_chunk, upload_text_file, ensure_drive_folder_path,
     download_drive_text, delete_drive_file, trash_drive_file,
+    dedupe_by_name, relevance_from_props,
 )
 from backend.services.extractor import (
     TRANSCRIBE_EXTS,
@@ -499,6 +500,19 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 if not _mirror_entry_valid(m, src):
                     continue  # source changed (md5/modifiedTime) → let it reprocess below
                 fid = src["id"]
+                # Adopt the relevance ("ignore") flag stamped on the extract. The
+                # Drive mirror is the source of truth, so a file ignored on ANY
+                # machine stays ignored everywhere — without this, a fresh machine
+                # would default it to 'relevant' and re-add it to a chunk. Only an
+                # explicit stamp propagates; legacy unstamped extracts leave the
+                # local value alone.
+                rel = relevance_from_props(m.get("appProperties"))
+                if rel:
+                    conn.execute(
+                        "UPDATE drive_files SET relevance=? WHERE id=? "
+                        "AND COALESCE(relevance,'relevant')<>?",
+                        (rel, fid, rel),
+                    )
                 # Local extract path follows the source's CURRENT path.
                 expected = _extracted_local_path(extracted_dir, src["drive_path"])
                 existing = proc_by_id.get(fid)
@@ -593,26 +607,20 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 # Keep the most-recently-modified per name, trash the rest, and point
                 # any local row at the survivor so it isn't left referencing a
                 # trashed file.
-                by_name: dict[str, list[dict]] = {}
-                for f in out_files:
-                    by_name.setdefault(f["name"], []).append(f)
-                id_by_name: dict[str, str] = {}
+                id_by_name, to_trash = dedupe_by_name(out_files)
                 trashed_dups = 0
-                for fname, dupes in by_name.items():
-                    dupes.sort(key=lambda d: d.get("modifiedTime") or "", reverse=True)
-                    survivor = dupes[0]["id"]
-                    id_by_name[fname] = survivor
-                    for extra in dupes[1:]:
-                        try:
-                            trash_drive_file(service, extra["id"])
-                            trashed_dups += 1
-                        except Exception:
-                            pass
-                    if len(dupes) > 1:
-                        conn.execute(
-                            "UPDATE chunks SET output_drive_file_id=?, updated_at=? WHERE chunk_filename=?",
-                            (survivor, _now(), fname),
-                        )
+                for fname, dup_id in to_trash:
+                    try:
+                        trash_drive_file(service, dup_id)
+                        trashed_dups += 1
+                    except Exception:
+                        pass
+                    # Re-point the local row at the survivor so it isn't left
+                    # referencing a trashed file.
+                    conn.execute(
+                        "UPDATE chunks SET output_drive_file_id=?, updated_at=? WHERE chunk_filename=?",
+                        (id_by_name[fname], _now(), fname),
+                    )
                 if trashed_dups:
                     conn.commit()
                     emit("stage_change", {"stage": "hydrate",
@@ -977,7 +985,8 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
             to_upload = conn.execute(
                 """SELECT fp.drive_file_id, fp.processed_path, fp.content_hash,
                           fp.extracted_drive_file_id, fp.extracted_uploaded_hash,
-                          df.drive_path, df.name, df.md5_checksum, df.modified_time
+                          df.drive_path, df.name, df.md5_checksum, df.modified_time,
+                          COALESCE(df.relevance, 'relevant') AS relevance
                    FROM file_processing fp
                    JOIN drive_files df ON df.id = fp.drive_file_id
                    WHERE fp.processing_status='done' AND fp.processed_path IS NOT NULL
@@ -1007,6 +1016,8 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                     "source_id": row["drive_file_id"],
                     "source_md5": row["md5_checksum"] or "",
                     "source_modified": row["modified_time"] or "",
+                    # Travels with the extract so "ignore" is honored on every machine.
+                    "relevance": row["relevance"],
                 }
                 try:
                     parent_id = ensure_drive_folder_path(service, extracted_folder_id, rel_dir, folder_cache)
