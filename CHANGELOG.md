@@ -3,6 +3,21 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.2.1 — 2026-06-29
+
+### Fixed
+- **No more needless re-chunk/re-upload when another machine already made the
+  chunks.** A chunk's identity across machines is its *filename*, not its Drive file
+  ID (each machine that creates a file gets a different ID). The 1.2.0
+  "regenerate-missing" check compared Drive IDs, so a second machine — whose local
+  DB recorded different IDs for the same-named chunks — saw them all as "missing"
+  and rebuilt + re-uploaded everything on an idle sync, even with no source changes.
+  Reconciliation is now by **filename**: if a chunk's name is present on Drive under
+  a different ID, the app simply **adopts** that ID; it only rebuilds when the name
+  is genuinely absent. (The stray re-uploads were harmless — they updated the
+  existing files in place, no duplicates, no false "new source" alerts — just
+  wasteful.)
+
 ## 1.2.0 — 2026-06-29
 
 ### Added

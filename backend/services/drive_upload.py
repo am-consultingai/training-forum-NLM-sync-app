@@ -60,6 +60,27 @@ def dedupe_by_name(files: list[dict]) -> tuple[dict[str, str], list[tuple[str, s
     return id_by_name, to_trash
 
 
+def reconcile_chunks_by_name(tracked, present_by_name: dict) -> tuple[list, list]:
+    """Decide — by FILENAME — what to do with locally-tracked chunks given the Drive
+    output folder's current {name: id}. A chunk's cross-machine identity is its name,
+    not its Drive ID, so this avoids a machine rebuilding/re-uploading a chunk that
+    another machine merely (re)created under a different ID. Pure (no Drive calls).
+
+    tracked: iterable of (filename, output_drive_file_id).
+    Returns (adopt, missing):
+      adopt   = [(filename, drive_id)] present under a DIFFERENT id → re-point only.
+      missing = [filename] absent from the folder entirely → must be rebuilt.
+    """
+    adopt, missing = [], []
+    for fname, current_id in tracked:
+        drive_id = present_by_name.get(fname)
+        if drive_id is None:
+            missing.append(fname)
+        elif drive_id != current_id:
+            adopt.append((fname, drive_id))
+    return adopt, missing
+
+
 def update_app_properties(service, file_id: str, app_properties: dict) -> None:
     """Metadata-only update of a Drive file's appProperties (no media re-upload).
     Used to push a relevance toggle to the mirror extract so the flag travels to

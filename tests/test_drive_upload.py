@@ -2,6 +2,7 @@
 Majors_Part5.txt across machines), plus the dedup + relevance helpers."""
 from backend.services.drive_upload import (
     dedupe_by_name,
+    reconcile_chunks_by_name,
     relevance_from_props,
     update_app_properties,
     upload_text_file,
@@ -65,6 +66,30 @@ def test_dedupe_by_name_no_duplicates():
     id_by_name, to_trash = dedupe_by_name(files)
     assert id_by_name == {"A": "x"}
     assert to_trash == []
+
+
+def test_reconcile_chunks_by_name_adopts_not_rebuilds():
+    """A chunk another machine (re)created has a DIFFERENT Drive ID for the same
+    name. We must adopt that ID, not flag it missing and rebuild/re-upload."""
+    tracked = [
+        ("AI_Part1.txt", "old_id_a"),       # present under a new id -> adopt
+        ("Majors_Part1.txt", "same_id_m"),  # present, same id -> no-op
+        ("Gone_Part1.txt", "old_id_g"),     # name absent entirely -> rebuild
+    ]
+    present_by_name = {"AI_Part1.txt": "new_id_a", "Majors_Part1.txt": "same_id_m"}
+    adopt, missing = reconcile_chunks_by_name(tracked, present_by_name)
+    assert adopt == [("AI_Part1.txt", "new_id_a")]
+    assert missing == ["Gone_Part1.txt"]
+
+
+def test_reconcile_chunks_all_present_no_rebuild():
+    """The reported bug: every tracked chunk exists by name (even if its ID changed),
+    so NOTHING is missing — an idle sync must not rebuild."""
+    tracked = [("AI_Part1.txt", "stale1"), ("Majors_Part1.txt", "stale2")]
+    present_by_name = {"AI_Part1.txt": "newA", "Majors_Part1.txt": "newM"}
+    adopt, missing = reconcile_chunks_by_name(tracked, present_by_name)
+    assert missing == []                      # no rebuild
+    assert sorted(adopt) == [("AI_Part1.txt", "newA"), ("Majors_Part1.txt", "newM")]
 
 
 def test_relevance_from_props():

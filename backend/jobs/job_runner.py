@@ -34,7 +34,7 @@ from backend.services.drive_sync import (
 from backend.services.drive_upload import (
     upload_chunk, upload_text_file, ensure_drive_folder_path,
     download_drive_text, delete_drive_file, trash_drive_file,
-    dedupe_by_name, relevance_from_props,
+    dedupe_by_name, relevance_from_props, reconcile_chunks_by_name,
 )
 from backend.services.extractor import (
     TRANSCRIBE_EXTS,
@@ -426,17 +426,36 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 "WHERE output_drive_file_id IS NOT NULL").fetchall()
             if out_id and tracked:
                 try:
-                    present = {f["id"] for f in list_all_files(service, out_id)
-                               if f["mimeType"] != "application/vnd.google-apps.folder"}
-                    missing = [r for r in tracked if r["output_drive_file_id"] not in present]
+                    present_by_name = {
+                        f["name"]: f["id"] for f in list_all_files(service, out_id)
+                        if f["mimeType"] != "application/vnd.google-apps.folder"
+                    }
+                    # A chunk's cross-machine identity is its FILENAME, not its Drive
+                    # ID (each machine that creates a file gets a different ID). So a
+                    # chunk is only truly "missing" when its NAME is absent. If the
+                    # name is present under a different ID — another machine (re)created
+                    # it — ADOPT that ID instead of rebuilding, otherwise every machine
+                    # would needlessly re-chunk and re-upload the other's work.
+                    adopt, missing = reconcile_chunks_by_name(
+                        [(r["chunk_filename"], r["output_drive_file_id"]) for r in tracked],
+                        present_by_name,
+                    )
+                    for fname, drive_id in adopt:
+                        conn.execute(
+                            "UPDATE chunks SET output_drive_file_id=?, updated_at=? "
+                            "WHERE chunk_filename=?", (drive_id, _now(), fname))
+                    if adopt:
+                        conn.commit()
+                        emit("stage_change", {"stage": "chunk",
+                              "message": f"Adopted {len(adopt)} chunk ID(s) created on another machine"})
                     if missing:
                         gone_groups = set()
-                        for r in missing:
-                            sg = _chunk_safe_group(r["chunk_filename"])
+                        for fname in missing:
+                            sg = _chunk_safe_group(fname)
                             if sg:
                                 gone_groups.add(sg)
                             conn.execute("DELETE FROM chunks WHERE chunk_filename=?",
-                                         (r["chunk_filename"],))
+                                         (fname,))
                         for fr in conn.execute(
                             "SELECT fp.drive_file_id, df.drive_path FROM file_processing fp "
                             "JOIN drive_files df ON df.id=fp.drive_file_id "
@@ -665,6 +684,24 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                     conn.commit()
                     emit("stage_change", {"stage": "hydrate",
                           "message": f"Removed {trashed_dups} duplicate chunk file(s) on Drive"})
+
+                # ── Adopt Drive IDs by name ──
+                # A chunk (re)created on another machine has a different Drive ID than
+                # this machine recorded. Re-point local rows at the live Drive ID (by
+                # filename) so an upload this run updates that file in place instead of
+                # using a stale/trashed ID — and so we don't mistake it for missing.
+                adopted_ids = 0
+                for fname, drive_id in id_by_name.items():
+                    cur = conn.execute(
+                        "UPDATE chunks SET output_drive_file_id=?, updated_at=? "
+                        "WHERE chunk_filename=? AND output_drive_file_id IS NOT ?",
+                        (drive_id, _now(), fname, drive_id),
+                    )
+                    adopted_ids += cur.rowcount
+                if adopted_ids:
+                    conn.commit()
+                    emit("stage_change", {"stage": "hydrate",
+                          "message": f"Adopted {adopted_ids} chunk ID(s) from Drive"})
 
                 # ── Hydrate chunks from Drive (fresh/relocated machine) ──
                 # Reuses the survivors above so a freshly-hydrated machine adopts the
