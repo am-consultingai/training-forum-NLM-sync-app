@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 import warnings
 
+from backend.paths import long_path
+
 warnings.simplefilter(action="ignore", category=UserWarning)
 
 SUPPORTED_EXTRACT = {".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls", ".txt", ".md", ".py", ".java", ".html", ".csv"}
@@ -182,6 +184,7 @@ def _extract_ppt_ole(path: str) -> tuple[str, bool]:
 def extract_text(path: str) -> tuple[str, bool]:
     """Return (text, success). Imports deferred so missing libs don't crash startup."""
     ext = os.path.splitext(path)[1].lower()
+    path = long_path(path)  # Windows extended-length so >260-char source paths open
     converted_tmp = None
     try:
         if ext == ".xlsx":
@@ -293,7 +296,7 @@ def extract_audio_from_video(video_path: str, output_mp3_path: str, ffmpeg_path:
     is surfaced and recorded instead of collapsed into a generic message."""
     result = subprocess.run(
         [
-            ffmpeg_path, "-i", video_path,
+            ffmpeg_path, "-i", long_path(video_path),
             "-vn",
             "-ac", "1",
             "-ar", "16000",

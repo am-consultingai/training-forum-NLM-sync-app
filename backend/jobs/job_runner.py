@@ -37,13 +37,13 @@ from backend.services.drive_upload import (
 )
 from backend.services.extractor import (
     TRANSCRIBE_EXTS,
-    VIDEO_EXTS,
     clean_text,
     extract_audio_from_video,
     extract_text,
     get_processing_type,
 )
 from backend.services.chunker import build_chunks, content_hash, _safe_group_name
+from backend.paths import long_path
 
 log = logging.getLogger(__name__)
 
@@ -310,7 +310,7 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
             def _task(job):
                 key, fid, dest = job
                 try:
-                    if not os.path.exists(dest):
+                    if not os.path.exists(long_path(dest)):
                         download_drive_text(_dl_service(), fid, dest)
                     return (key, dest, content_hash(dest), None)
                 except Exception as e:
@@ -505,7 +505,7 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 if (existing and existing["processing_status"] == "done"
                         and existing["extracted_drive_file_id"] == m["id"]
                         and existing["processed_path"] == data_rel(expected)
-                        and os.path.exists(expected)):
+                        and os.path.exists(long_path(expected))):
                     continue  # already seeded and present locally — fast path
                 jobs.append((fid, m["id"], expected))
                 mid_by_fid[fid] = m["id"]
@@ -668,7 +668,6 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                     # Mirror name keeps the full source name + '.txt'
                     # (e.g. learning_hr.mp4 -> learning_hr.mp4.txt)
                     out_path = _extracted_local_path(extracted_dir, drive_path)
-                    os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
                     p_conn.execute(
                         "UPDATE file_processing SET processing_status='extracting', processing_type=?, processing_started_at=?, updated_at=? WHERE drive_file_id=?",
@@ -679,13 +678,17 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                                          "stage": "processing", "status": "extracting"})
 
                     try:
+                        # Create the (possibly >260-char) extract dir long-path-safe,
+                        # and inside the try so one bad path fails just this file —
+                        # not the whole worker thread.
+                        os.makedirs(os.path.dirname(long_path(out_path)), exist_ok=True)
                         if proc_type == "google_export":
-                            shutil.copy2(src_path, out_path)
+                            shutil.copy2(long_path(src_path), long_path(out_path))
 
                         elif proc_type == "extract":
                             text, ok = extract_text(src_path)
                             if ok:
-                                with open(out_path, "w", encoding="utf-8") as f:
+                                with open(long_path(out_path), "w", encoding="utf-8") as f:
                                     f.write(clean_text(text))
                             else:
                                 raise ValueError(f"Extraction failed: {text}")
@@ -711,7 +714,11 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                             ext = os.path.splitext(src_path)[1].lower()
                             audio_path = src_path
                             tmp_audio = None
-                            if ext in VIDEO_EXTS:
+                            # Normalize ALL media (audio + video) to a short-path 16 kHz
+                            # mono temp via ffmpeg, so the transcriber never receives a
+                            # >260-char source path (faster-whisper/PyAV can't open one).
+                            # ffmpeg reads the source through its own \\?\ long-path form.
+                            if ext in TRANSCRIBE_EXTS:
                                 fd, tmp_audio = tempfile.mkstemp(suffix=".mp3", dir=tempfile.gettempdir())
                                 os.close(fd)
                                 try:
@@ -1021,7 +1028,7 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
             if _safe_group_name(group) not in chunk_dirty:
                 continue  # group unchanged — keep its chunks as-is, skip rebuild
             abs_processed = data_abs(row["processed_path"])
-            if not abs_processed or not os.path.exists(abs_processed):
+            if not abs_processed or not os.path.exists(long_path(abs_processed)):
                 continue
             chunk_files.append({
                 "name": os.path.basename(abs_processed),

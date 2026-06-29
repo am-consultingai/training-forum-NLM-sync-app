@@ -199,8 +199,8 @@ class Transcriber:
         if progress_callback:
             progress_callback(1.0)
 
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
+        os.makedirs(os.path.dirname(paths.long_path(output_path)), exist_ok=True)
+        with open(paths.long_path(output_path), "w", encoding="utf-8") as f:
             f.write("\n".join(parts))
 
         return output_path

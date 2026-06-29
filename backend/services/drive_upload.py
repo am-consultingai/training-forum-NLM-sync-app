@@ -4,6 +4,8 @@ import time
 
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
+from backend.paths import long_path
+
 
 def upload_text_file(
     service,
@@ -22,7 +24,7 @@ def upload_text_file(
     """
     for attempt in range(max_retries):
         try:
-            media = MediaFileUpload(local_path, mimetype="text/plain", resumable=False)
+            media = MediaFileUpload(long_path(local_path), mimetype="text/plain", resumable=False)
             if existing_drive_id:
                 body = {}
                 if app_properties:
@@ -108,9 +110,9 @@ def ensure_drive_folder_path(service, root_folder_id: str, rel_dir: str, cache: 
 
 def download_drive_text(service, file_id: str, dest_path: str):
     """Download a (text) Drive file by ID to dest_path."""
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    os.makedirs(os.path.dirname(long_path(dest_path)), exist_ok=True)
     request = service.files().get_media(fileId=file_id)
-    with open(dest_path, "wb") as f:
+    with open(long_path(dest_path), "wb") as f:
         downloader = MediaIoBaseDownload(f, request)
         done = False
         while not done:

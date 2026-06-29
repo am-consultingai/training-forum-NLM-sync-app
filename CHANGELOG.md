@@ -3,6 +3,20 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.7 — 2026-06-29
+
+### Fixed
+- **Deeply-nested files now process on machines that don't have Windows long-path
+  support enabled.** The earlier `\\?\` fix covered downloads but not the extract/
+  transcript writes or source reads — so on a machine without `LongPathsEnabled`,
+  processing a file under a very deep (incl. Hebrew) folder tree crashed the whole
+  process worker with `WinError 206` / `[Errno 2]`, which then failed every later
+  file too. Now every local file operation (extract dir + write, text extraction,
+  ffmpeg input, transcript write, chunk reads, hashing, existence checks) uses the
+  extended-length path form, and a per-file path failure can no longer kill the
+  worker. Audio is also normalized through ffmpeg so the transcriber never receives
+  an over-260-char path.
+
 ## 1.1.6 — 2026-06-29
 
 ### Changed

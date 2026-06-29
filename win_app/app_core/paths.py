@@ -21,6 +21,17 @@ import sys
 APP_NAME = "sHaRe-sync"
 
 
+def long_path(path: str) -> str:
+    r"""On Windows, return an extended-length (\\?\) form of an absolute path so paths
+    longer than the 260-char MAX_PATH can be created/opened/read regardless of the
+    machine's LongPathsEnabled registry setting. Used ONLY at the filesystem-call
+    boundary — never stored in the DB or shown to the user. No-op off Windows."""
+    if os.name != "nt" or not path:
+        return path
+    p = os.path.abspath(path)
+    return p if p.startswith("\\\\?\\") else "\\\\?\\" + p
+
+
 def is_frozen() -> bool:
     """True when running from a PyInstaller bundle."""
     return bool(getattr(sys, "frozen", False))

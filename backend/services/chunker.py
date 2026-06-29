@@ -3,6 +3,8 @@ import re
 import hashlib
 from typing import Optional
 
+from backend.paths import long_path
+
 DEFAULT_CHUNK_SIZE_BYTES = int(5 * 1024 * 1024)   # 5 MB default
 # NotebookLM rejects a source at >= 500,000 words. Cap chunk *content* well below
 # that (with margin for the manifest header + inline provenance markers, and to
@@ -164,6 +166,7 @@ def _write_chunk(filepath: str, group_name: str, part_num: int, items: list[dict
 
 
 def content_hash(path: str) -> Optional[str]:
+    path = long_path(path)
     if not os.path.exists(path):
         return None
     h = hashlib.md5()
@@ -213,9 +216,9 @@ def build_chunks(
             fname = fdict["name"]
             file_id = fdict.get("drive_file_id")
             link = drive_link(file_id)
-            if not os.path.exists(fpath):
+            if not os.path.exists(long_path(fpath)):
                 continue
-            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+            with open(long_path(fpath), "r", encoding="utf-8", errors="ignore") as f:
                 raw = f.read()
             text = _normalize(raw)
             if not text:

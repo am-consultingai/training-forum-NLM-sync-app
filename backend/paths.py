@@ -10,6 +10,7 @@ from win_app.app_core.paths import (  # noqa: F401
     default_ffmpeg,
     frontend_dist_dir,
     is_frozen,
+    long_path,
     model_dir,
     oauth_client_path,
     token_path,
