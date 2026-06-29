@@ -33,7 +33,7 @@ from backend.services.drive_sync import (
 )
 from backend.services.drive_upload import (
     upload_chunk, upload_text_file, ensure_drive_folder_path,
-    download_drive_text, delete_drive_file,
+    download_drive_text, delete_drive_file, trash_drive_file,
 )
 from backend.services.extractor import (
     TRANSCRIBE_EXTS,
@@ -575,42 +575,81 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 if not r["output_drive_file_id"] or not (r["chunk_path"] and os.path.exists(data_abs(r["chunk_path"]))):
                     need_chunk_hydration = True
                     break
+        # The output folder holds only chunk files (a few dozen), so a shallow walk
+        # each run is cheap — and it lets us dedup on EVERY sync, not just on the
+        # fresh-machine hydration path (a machine that already created duplicates
+        # has a fully-populated chunks table, so need_chunk_hydration is False).
         hydrate_output_id = get_effective_output_folder_id()
-        if hydrate_output_id and need_chunk_hydration:
+        if hydrate_output_id:
             try:
-                jobs = []          # (fname, chunk_drive_id, local_abs)
-                id_by_name: dict = {}
-                for ch in list_all_files(service, hydrate_output_id):
-                    if ch["mimeType"] == "application/vnd.google-apps.folder":
-                        continue
-                    fname = ch["name"]
-                    local = os.path.join(get_chunks_dir(), fname)
-                    id_by_name[fname] = ch["id"]
-                    row = conn.execute(
-                        "SELECT chunk_path, output_drive_file_id FROM chunks WHERE chunk_filename=?",
-                        (fname,),
-                    ).fetchone()
-                    if (row and row["output_drive_file_id"] == ch["id"]
-                            and row["chunk_path"] == data_rel(local) and os.path.exists(local)):
-                        continue
-                    jobs.append((fname, ch["id"], local))
-                hydrated_chunks = 0
-                for (fname, local, h, err) in _download_many(jobs, "Restoring chunks"):
-                    if err:
-                        continue
-                    conn.execute(
-                        """INSERT INTO chunks (chunk_filename, chunk_path, content_hash, upload_status, output_drive_file_id, uploaded_at)
-                           VALUES (?,?,?,'done',?,?)
-                           ON CONFLICT(chunk_filename) DO UPDATE SET
-                             chunk_path=excluded.chunk_path, content_hash=excluded.content_hash,
-                             upload_status='done', output_drive_file_id=excluded.output_drive_file_id,
-                             updated_at=excluded.uploaded_at""",
-                        (fname, data_rel(local), h, id_by_name[fname], _now()),
-                    )
-                    hydrated_chunks += 1
-                conn.commit()
-                if hydrated_chunks:
-                    emit("stage_change", {"stage": "hydrate", "message": f"Restored {hydrated_chunks} chunk file(s) from Drive"})
+                out_files = [
+                    f for f in list_all_files(service, hydrate_output_id)
+                    if f["mimeType"] != "application/vnd.google-apps.folder"
+                ]
+
+                # ── De-duplicate Drive chunks by name ──
+                # Non-idempotent uploads + per-machine chunk-set drift could leave
+                # several Drive files sharing one name (e.g. two Majors_Part5.txt).
+                # Keep the most-recently-modified per name, trash the rest, and point
+                # any local row at the survivor so it isn't left referencing a
+                # trashed file.
+                by_name: dict[str, list[dict]] = {}
+                for f in out_files:
+                    by_name.setdefault(f["name"], []).append(f)
+                id_by_name: dict[str, str] = {}
+                trashed_dups = 0
+                for fname, dupes in by_name.items():
+                    dupes.sort(key=lambda d: d.get("modifiedTime") or "", reverse=True)
+                    survivor = dupes[0]["id"]
+                    id_by_name[fname] = survivor
+                    for extra in dupes[1:]:
+                        try:
+                            trash_drive_file(service, extra["id"])
+                            trashed_dups += 1
+                        except Exception:
+                            pass
+                    if len(dupes) > 1:
+                        conn.execute(
+                            "UPDATE chunks SET output_drive_file_id=?, updated_at=? WHERE chunk_filename=?",
+                            (survivor, _now(), fname),
+                        )
+                if trashed_dups:
+                    conn.commit()
+                    emit("stage_change", {"stage": "hydrate",
+                          "message": f"Removed {trashed_dups} duplicate chunk file(s) on Drive"})
+
+                # ── Hydrate chunks from Drive (fresh/relocated machine) ──
+                # Reuses the survivors above so a freshly-hydrated machine adopts the
+                # existing Drive IDs and never re-creates duplicates.
+                if need_chunk_hydration:
+                    jobs = []          # (fname, chunk_drive_id, local_abs)
+                    for fname, drive_id in id_by_name.items():
+                        local = os.path.join(get_chunks_dir(), fname)
+                        row = conn.execute(
+                            "SELECT chunk_path, output_drive_file_id FROM chunks WHERE chunk_filename=?",
+                            (fname,),
+                        ).fetchone()
+                        if (row and row["output_drive_file_id"] == drive_id
+                                and row["chunk_path"] == data_rel(local) and os.path.exists(local)):
+                            continue
+                        jobs.append((fname, drive_id, local))
+                    hydrated_chunks = 0
+                    for (fname, local, h, err) in _download_many(jobs, "Restoring chunks"):
+                        if err:
+                            continue
+                        conn.execute(
+                            """INSERT INTO chunks (chunk_filename, chunk_path, content_hash, upload_status, output_drive_file_id, uploaded_at)
+                               VALUES (?,?,?,'done',?,?)
+                               ON CONFLICT(chunk_filename) DO UPDATE SET
+                                 chunk_path=excluded.chunk_path, content_hash=excluded.content_hash,
+                                 upload_status='done', output_drive_file_id=excluded.output_drive_file_id,
+                                 updated_at=excluded.uploaded_at""",
+                            (fname, data_rel(local), h, id_by_name[fname], _now()),
+                        )
+                        hydrated_chunks += 1
+                    conn.commit()
+                    if hydrated_chunks:
+                        emit("stage_change", {"stage": "hydrate", "message": f"Restored {hydrated_chunks} chunk file(s) from Drive"})
             except Exception as e:
                 emit("stage_change", {"stage": "hydrate", "message": f"Could not restore chunks: {e}"})
 
@@ -1008,12 +1047,20 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
         }
         chunk_dirty = dirty_groups | pending_chunk_groups | changed_groups
 
+        # ORDER BY drive_path is load-bearing, not cosmetic: build_chunks packs
+        # extracts into Group_PartN.txt greedily in arrival order, so the SAME
+        # sources fed in a DIFFERENT order produce a DIFFERENT number of parts with
+        # DIFFERENT content. Without a stable order, two machines disagree on the
+        # chunk set (8 vs 13) and re-upload everything. drive_path is identical on
+        # every machine, so the packing — and the resulting chunk names/hashes — is
+        # now deterministic across machines.
         all_processed = conn.execute(
             """SELECT fp.processed_path, fp.content_hash, fp.drive_file_id, df.drive_path,
                       COALESCE(df.relevance, 'relevant') AS relevance
                FROM file_processing fp
                JOIN drive_files df ON df.id = fp.drive_file_id
-               WHERE fp.processing_status = 'done' AND fp.processed_path IS NOT NULL"""
+               WHERE fp.processing_status = 'done' AND fp.processed_path IS NOT NULL
+               ORDER BY df.drive_path"""
         ).fetchall()
 
         from backend.app_config import get_chunk_size_mb
@@ -1035,6 +1082,7 @@ def run_sync(triggered_by: str = "manual", main_loop: asyncio.AbstractEventLoop 
                 "path": abs_processed,
                 "group": group,
                 "drive_file_id": row["drive_file_id"],
+                "drive_path": row["drive_path"],
             })
 
         # Groups rebuilt this run (safe names) and the chunk filenames produced.

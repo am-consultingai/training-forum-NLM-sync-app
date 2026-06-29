@@ -7,6 +7,27 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from backend.paths import long_path
 
 
+def _find_file_by_name(service, parent_folder_id: str, name: str) -> str | None:
+    """Return the ID of a non-trashed file named `name` directly under
+    `parent_folder_id`, or None. Used to make uploads idempotent by name: Drive
+    happily creates a SECOND file with the same name in a folder, so without this
+    a machine that doesn't already know a chunk's Drive ID would create a duplicate
+    (e.g. a second Majors_Part5.txt) instead of updating the existing one."""
+    if not parent_folder_id:
+        return None
+    safe = name.replace("\\", "\\\\").replace("'", "\\'")
+    q = f"'{parent_folder_id}' in parents and trashed=false and name='{safe}'"
+    resp = (
+        service.files()
+        .list(q=q, fields="files(id,modifiedTime)", pageSize=10,
+              orderBy="modifiedTime desc",
+              supportsAllDrives=True, includeItemsFromAllDrives=True)
+        .execute()
+    )
+    files = resp.get("files", [])
+    return files[0]["id"] if files else None
+
+
 def upload_text_file(
     service,
     local_path: str,
@@ -25,25 +46,35 @@ def upload_text_file(
     for attempt in range(max_retries):
         try:
             media = MediaFileUpload(long_path(local_path), mimetype="text/plain", resumable=False)
-            if existing_drive_id:
+            target_name = name or os.path.basename(local_path)
+            # Idempotent by name: if the caller didn't hand us an ID, look one up by
+            # name in the target folder before creating. This guarantees one Drive
+            # file per name regardless of local-DB state, killing cross-machine
+            # duplicates at the upload layer.
+            target_id = existing_drive_id or _find_file_by_name(
+                service, parent_folder_id, target_name
+            )
+            if target_id:
                 body = {}
                 if app_properties:
                     body["appProperties"] = app_properties
                 file = (
                     service.files()
-                    .update(fileId=existing_drive_id, media_body=media, body=body or None)
+                    .update(fileId=target_id, media_body=media, body=body or None,
+                            fields="id", supportsAllDrives=True)
                     .execute()
                 )
             else:
                 metadata = {
-                    "name": name or os.path.basename(local_path),
+                    "name": target_name,
                     "parents": [parent_folder_id],
                 }
                 if app_properties:
                     metadata["appProperties"] = app_properties
                 file = (
                     service.files()
-                    .create(body=metadata, media_body=media, fields="id")
+                    .create(body=metadata, media_body=media, fields="id",
+                            supportsAllDrives=True)
                     .execute()
                 )
             return file["id"]

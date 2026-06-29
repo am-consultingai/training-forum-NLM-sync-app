@@ -3,6 +3,25 @@
 All notable changes to sHaRe sync are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.8 — 2026-06-29
+
+### Fixed
+- **Chunk count is now identical on every machine (no more "8 chunks become
+  13").** Chunks were packed into `Group_PartN.txt` files in whatever order the
+  database returned rows — which differs per machine — so the same sources packed
+  into a different number of parts with different content, and everything looked
+  "changed" and re-uploaded. Source files are now packed in a stable order (by
+  Drive path), so the chunk set is deterministic across machines.
+- **A sync on a second machine no longer creates duplicate chunks with names that
+  already exist on Drive** (e.g. a second `Majors_Part5.txt`). Chunk upload is now
+  idempotent by name: before creating a file it looks one up by name in the output
+  folder and updates that instead of creating a duplicate (Drive allows multiple
+  files with the same name). Works regardless of what the local database knows.
+- **Existing duplicate chunks are cleaned up automatically.** Each sync now scans
+  the output folder and, for any name with more than one Drive file, keeps the
+  most-recently-modified one and moves the rest to Drive trash (recoverable),
+  re-pointing local records at the survivor.
+
 ## 1.1.7 — 2026-06-29
 
 ### Fixed

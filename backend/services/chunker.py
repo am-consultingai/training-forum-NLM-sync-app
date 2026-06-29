@@ -192,8 +192,16 @@ def build_chunks(
     os.makedirs(output_dir, exist_ok=True)
     content_limit = int(chunk_size_bytes * 0.95)
 
+    # Deterministic packing: the number of Group_PartN.txt files and their content
+    # depend on the order files are packed in. Sort by a machine-stable key (the
+    # source drive_path, falling back to name) so every machine produces the same
+    # chunk set for the same sources — otherwise two machines disagree on the part
+    # count and create duplicate/conflicting chunks on Drive.
+    def _order_key(f: dict) -> str:
+        return f.get("drive_path") or f.get("name") or f.get("path") or ""
+
     groups: dict[str, list[dict]] = {}
-    for f in files:
+    for f in sorted(files, key=_order_key):
         safe = _safe_group_name(f["group"])
         groups.setdefault(safe, []).append(f)
 
